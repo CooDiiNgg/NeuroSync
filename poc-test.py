@@ -7,6 +7,33 @@ MESSAGE_LENGTH = 8
 KEY_SIZE = 8
 TRAINING_EPISODES = 5000000
 
+def detect_and_escape_local_minimum(network, errors, window_size=10000, threshold=0.001, perturbation_factor=0.05):
+    """
+    Detect if Bob is stuck in a local minimum and help it escape.
+    """
+    if len(errors) < window_size * 2:
+        return False
+    
+    recent_avg = np.mean(errors[-window_size:])
+    previous_avg = np.mean(errors[-2*window_size:-window_size])
+    
+    improvement = previous_avg - recent_avg
+    
+    if 0 < improvement < threshold:
+        print(f"\n[!] Bob appears stuck in local minimum. Recent avg error: {recent_avg:.6f}")
+        print(f"    Previous avg error: {previous_avg:.6f}, Improvement: {improvement:.6f}")
+        print(f"    Applying perturbation to help escape local minimum...")
+        
+        noise_w = np.random.randn(*network.w.shape) * perturbation_factor * np.std(network.w)
+        noise_b = np.random.randn(*network.b.shape) * perturbation_factor * np.std(network.b)
+        
+        network.w += noise_w
+        network.b += noise_b
+        
+        return True
+    
+    return False
+
 def text_to_bits(text):
     """Convert text to binary: each char as 5 bits (0-26 in binary)"""
     text = text.lower().ljust(MESSAGE_LENGTH)[:MESSAGE_LENGTH]
@@ -154,6 +181,11 @@ def train():
             print(f"    Original:  '{plaintext}'")
             print(f"    Decrypted: '{decrypted_text}'")
             print(f"    Ciphertext bits_to_text: '{bits_to_text(ciphertext)}'")
+            
+            if (episode + 1) >= 25000:
+                perturbation_applied = detect_and_escape_local_minimum(bob, bob_errors)
+                if perturbation_applied:
+                    print(f"    Applied perturbation to Bob's weights to escape local minimum.")
             
             if (episode + 1) % 10000 == 0:
                 print(f"\n  Testing all training words:")
