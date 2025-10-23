@@ -7,7 +7,7 @@ MESSAGE_LENGTH = 16
 KEY_SIZE = 16
 TRAINING_EPISODES = 5000000
 
-def detect_and_escape_local_minimum(network, errors, window_size=10000, threshold=0.01, perturbation_factor=0.05):
+def detect_and_escape_local_minimum(network, errors, window_size=10000, threshold=0.001, perturbation_factor=0.05):
     """
     Detect if Bob is stuck in a local minimum and help it escape.
     """
@@ -19,7 +19,7 @@ def detect_and_escape_local_minimum(network, errors, window_size=10000, threshol
     
     improvement = previous_avg - recent_avg
 
-    if (0 < improvement < threshold) and recent_avg > 0.0001:
+    if 0 < improvement < threshold:
         print(f"\n[!] Bob appears stuck in local minimum. Recent avg error: {recent_avg:.6f}")
         print(f"    Previous avg error: {previous_avg:.6f}, Improvement: {improvement:.6f}")
         print(f"    Applying perturbation to help escape local minimum...")
