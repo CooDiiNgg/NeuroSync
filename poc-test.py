@@ -124,10 +124,13 @@ def train(load=False):
     print("=" * 70)
     
     BIT_LENGTH = MESSAGE_LENGTH * 5
-    
-    key = np.random.choice([-1.0, 1.0], KEY_SIZE * 5)
-    np.save('key.npy', key)
-    print(f"Generated {len(key)}-bit key\n")
+    if load and os.path.exists('key.npy'):
+        key = np.load('key.npy')
+        print(f"Loaded {len(key)}-bit key\n")
+    else:
+        key = np.random.choice([-1.0, 1.0], KEY_SIZE * 5)
+        np.save('key.npy', key)
+        print(f"Generated {len(key)}-bit key\n")
     
     alice = SimpleNetwork(BIT_LENGTH + len(key), BIT_LENGTH, "Alice")
     bob = SimpleNetwork(BIT_LENGTH + len(key), BIT_LENGTH, "Bob")
