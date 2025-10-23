@@ -199,7 +199,7 @@ def train(load=False):
             
             if (episode + 1) % 10000 == 0:
                 print(f"\n  Testing all training words:")
-                test_words += ["hello world     ", "test coding     ", "neural nets     ", "crypto proof    ", "python code     ", "simple test     "]
+                test_words = ["hello world     ", "test coding     ", "neural nets     ", "crypto proof    ", "python code     ", "simple test     "]
                 correct = 0
                 for word in test_words:
                     pb = text_to_bits(word)
