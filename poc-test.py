@@ -199,7 +199,7 @@ def train(load=False):
             
             if (episode + 1) % 10000 == 0:
                 print(f"\n  Testing all training words:")
-                test_words = ["hello wo", "test cod", "aaaaaaa ", "zzzzzzz ", "neural  ", "crypto  ", "python  ", "simple  "]
+                test_words += ["hello world     ", "test coding     ", "neural nets     ", "crypto proof    ", "python code     ", "simple test     "]
                 correct = 0
                 for word in test_words:
                     pb = text_to_bits(word)
@@ -225,7 +225,7 @@ def train(load=False):
     print("=" * 70)
     
     test_words = [''.join([string.ascii_lowercase[np.random.randint(0, 26)] for _ in range(MESSAGE_LENGTH)]) for _ in range(100)]
-    test_words += ["hello wo", "test cod", "neural  ", "crypto  ", "python  ", "simple  "]
+    test_words += ["hello world     ", "test coding     ", "neural nets     ", "crypto proof    ", "python code     ", "simple test     "]
     correct = 0
     
     for word in test_words:
