@@ -3,11 +3,11 @@ import string
 import os
 
 
-MESSAGE_LENGTH = 8
-KEY_SIZE = 8
+MESSAGE_LENGTH = 16
+KEY_SIZE = 16
 TRAINING_EPISODES = 5000000
 
-def detect_and_escape_local_minimum(network, errors, window_size=10000, threshold=0.001, perturbation_factor=0.05):
+def detect_and_escape_local_minimum(network, errors, window_size=10000, threshold=0.01, perturbation_factor=0.05):
     """
     Detect if Bob is stuck in a local minimum and help it escape.
     """
@@ -18,8 +18,8 @@ def detect_and_escape_local_minimum(network, errors, window_size=10000, threshol
     previous_avg = np.mean(errors[-2*window_size:-window_size])
     
     improvement = previous_avg - recent_avg
-    
-    if 0 < improvement < threshold:
+
+    if (0 < improvement < threshold) and recent_avg > 0.0001:
         print(f"\n[!] Bob appears stuck in local minimum. Recent avg error: {recent_avg:.6f}")
         print(f"    Previous avg error: {previous_avg:.6f}, Improvement: {improvement:.6f}")
         print(f"    Applying perturbation to help escape local minimum...")
@@ -69,13 +69,17 @@ def bits_to_text(bits):
     return ''.join(chars)
 
 def generate_random_message():
-    messages = [''.join([string.ascii_lowercase[np.random.randint(0, 26)] for _ in range(MESSAGE_LENGTH)]) for _ in range(100)]
-    # now some random actual random real words from some random word list i found online... ;)
-    if np.random.rand() < 0.5:
-        with open("./words.txt", "r") as f:
-            word_list = [line.strip() for line in f if len(line.strip()) == MESSAGE_LENGTH]
-        messages = [word_list[np.random.randint(0, len(word_list))] for _ in range(100)]
-    return np.random.choice(messages)
+    # messages = [''.join([string.ascii_lowercase[np.random.randint(0, 26)] for _ in range(MESSAGE_LENGTH)]) for _ in range(100)]
+    # # now some random actual random real words from some random word list i found online... ;)
+    # if np.random.rand() < 0.5:
+    #     with open("./words.txt", "r") as f:
+    #         word_list = [line.strip() for line in f if len(line.strip()) == MESSAGE_LENGTH]
+    #     messages = [word_list[np.random.randint(0, len(word_list))] for _ in range(100)]
+    # return np.random.choice(messages)
+    # actually i need repetition so that it doesnt just learn on noise and is actually consistent (need to get a better wordlist though)
+    with open("./words.txt", "r") as f:
+        word_list = [line.strip() + " " * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
+    return word_list[np.random.randint(0, len(word_list))]
 
 class SimpleNetwork:
     """Ultra-simple network: just one layer - later maybe more"""
@@ -113,7 +117,7 @@ class SimpleNetwork:
         self.w = data['w']
         self.b = data['b']
 
-def train():
+def train(load=False):
     """Train Alice and Bob end-to-end with clear objective"""
     print("=" * 70)
     print("SIMPLIFIED NEURAL CRYPTO POC - Binary Representation")
@@ -127,6 +131,12 @@ def train():
     
     alice = SimpleNetwork(BIT_LENGTH + len(key), BIT_LENGTH, "Alice")
     bob = SimpleNetwork(BIT_LENGTH + len(key), BIT_LENGTH, "Bob")
+
+    if load and os.path.exists('alice.npz') and os.path.exists('bob.npz'):
+        print("Loading saved networks...")
+        alice.load('alice.npz')
+        bob.load('bob.npz')
+        print("Loaded!\n")
     
     print(" Alice and Bob initialized")
     print(f"  Message: {BIT_LENGTH} bits")
@@ -275,6 +285,9 @@ if __name__ == "__main__":
     
     if len(sys.argv) > 1 and sys.argv[1] == "test":
         test_saved()
+    elif len(sys.argv) > 1 and sys.argv[1] == "load":
+        print("Now trying a different method by retraining from saved networks...")
+        train(load=True)
     else:
         print("Hope for the best mates...")
         print("=" * 70)
