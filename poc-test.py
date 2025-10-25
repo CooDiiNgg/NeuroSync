@@ -1,3 +1,4 @@
+import re
 import numpy as np
 import string
 import os
@@ -7,25 +8,36 @@ MESSAGE_LENGTH = 16
 KEY_SIZE = 16
 TRAINING_EPISODES = 5000000
 
-def detect_and_escape_local_minimum(network, errors, window_size=10000, threshold=0.001, perturbation_factor=0.05):
+def detect_and_escape_local_minimum(network, errors, window_size=10000, threshold=0.0001, perturbation_factor=0.01):
     """
     Detect if Bob is stuck in a local minimum and help it escape.
     """
-    if len(errors) < window_size * 2:
+    if len(errors) < window_size * 3:
         return False
     
     recent_avg = np.mean(errors[-window_size:])
-    previous_avg = np.mean(errors[-2*window_size:-window_size])
+    mid_avg = np.mean(errors[-2*window_size:-window_size])
+    old_avg = np.mean(errors[-3*window_size:-2*window_size])
     
-    improvement = previous_avg - recent_avg
+    recent_improvement = mid_avg - recent_avg
+    previous_improvement = old_avg - mid_avg
 
-    if 0 < improvement < threshold:
-        print(f"\n[!] Bob appears stuck in local minimum. Recent avg error: {recent_avg:.6f}")
-        print(f"    Previous avg error: {previous_avg:.6f}, Improvement: {improvement:.6f}")
-        print(f"    Applying perturbation to help escape local minimum...")
+
+    if (0 <= recent_improvement < threshold and
+        previous_improvement > recent_improvement and
+        recent_avg > 0.001 and
+        np.std(errors[-window_size:]) < threshold * 10):
         
+        print(f"\n[!] Bob appears stuck in local minimum. Recent avg error: {recent_avg:.6f}")
+        print(f"    Previous improvements: {previous_improvement:.6f} → {recent_improvement:.6f}")
+        print(f"    Applying gentle perturbation to help escape local minimum...")
+        
+        error_mask = np.abs(network.out - network.x[:len(network.out)]) > np.mean(recent_avg)
         noise_w = np.random.randn(*network.w.shape) * perturbation_factor * np.std(network.w)
         noise_b = np.random.randn(*network.b.shape) * perturbation_factor * np.std(network.b)
+        
+        noise_w = noise_w * error_mask.reshape(-1, 1)
+        noise_b = noise_b * error_mask
         
         network.w += noise_w
         network.b += noise_b
@@ -285,14 +297,25 @@ def test_saved():
 
 if __name__ == "__main__":
     import sys
-    
-    if len(sys.argv) > 1 and sys.argv[1] == "test":
+    epoch = 1
+
+    if len(sys.argv) > 1 and re.match(r"^\d+$", sys.argv[1]):
+        epoch = int(sys.argv[1])
+    elif len(sys.argv) > 1 and sys.argv[1] == "test":
         test_saved()
     elif len(sys.argv) > 1 and sys.argv[1] == "load":
+        if len(sys.argv) > 2 and re.match(r"^\d+$", sys.argv[2]):
+            epoch = int(sys.argv[2])
         print("Now trying a different method by retraining from saved networks...")
-        train(load=True)
+        for e in range(epoch):
+            print(f"--- Epoch {e + 1}/{epoch} ---")
+            train(load=True)
     else:
         print("Hope for the best mates...")
         print("=" * 70)
         train()
+        epoch -= 1
+        for e in range(epoch):
+            print(f"--- Epoch {e + 1}/{epoch} ---")
+            train(load=True)
         print("=" * 70)
