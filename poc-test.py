@@ -299,9 +299,7 @@ if __name__ == "__main__":
     import sys
     epoch = 1
 
-    if len(sys.argv) > 1 and re.match(r"^\d+$", sys.argv[1]):
-        epoch = int(sys.argv[1])
-    elif len(sys.argv) > 1 and sys.argv[1] == "test":
+    if len(sys.argv) > 1 and sys.argv[1] == "test":
         test_saved()
     elif len(sys.argv) > 1 and sys.argv[1] == "load":
         if len(sys.argv) > 2 and re.match(r"^\d+$", sys.argv[2]):
@@ -311,6 +309,8 @@ if __name__ == "__main__":
             print(f"--- Epoch {e + 1}/{epoch} ---")
             train(load=True)
     else:
+        if len(sys.argv) > 1 and re.match(r"^\d+$", sys.argv[1]):
+            epoch = int(sys.argv[1])
         print("Hope for the best mates...")
         print("=" * 70)
         train()
