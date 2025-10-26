@@ -6,13 +6,15 @@ import string
 import os
 import numpy as np
 
+
+MESSAGE_LENGTH = 16
+KEY_SIZE = 16
+TRAINING_EPISODES = 5000000
+
 word_list = []
 with open("./words.txt", "r") as f:
         word_list = [line.strip() + " " * (MESSAGE_LENGTH - len(line.strip())) 
                      for line in f if len(line.strip()) <= MESSAGE_LENGTH]
-MESSAGE_LENGTH = 16
-KEY_SIZE = 16
-TRAINING_EPISODES = 5000000
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if torch.cuda.is_available():
