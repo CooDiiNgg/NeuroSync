@@ -8,7 +8,7 @@ MESSAGE_LENGTH = 16
 KEY_SIZE = 16
 TRAINING_EPISODES = 5000000
 
-def detect_and_escape_local_minimum(network, errors, window_size=10000, threshold=0.0005, perturbation_factor=0.01):
+def detect_and_escape_local_minimum(network, errors, window_size=10000, threshold=0.0005, perturbation_factor=0.25):
     """
     Detect if Bob is stuck in a local minimum and help it escape.
     """
