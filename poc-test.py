@@ -8,7 +8,7 @@ MESSAGE_LENGTH = 16
 KEY_SIZE = 16
 TRAINING_EPISODES = 5000000
 
-def detect_and_escape_local_minimum(network, errors, window_size=10000, threshold=0.0005, perturbation_factor=0.25):
+def detect_and_escape_local_minimum(network, errors, window_size=10000, threshold=0.0005, perturbation_factor=0.1):
     """
     Detect if Bob is stuck in a local minimum and help it escape.
     """
@@ -165,8 +165,18 @@ def train(load=False):
     
     bob_errors = []
     perfect_count = 0
-    
+
+    bob_start_learning_rate = 0.02
+    alice_start_learning_rate = 0.01
+    min_bob_lr = 0.0002
+    min_alice_lr = 0.0001
+
     for episode in range(TRAINING_EPISODES):
+
+        progress = episode / float(TRAINING_EPISODES)
+        bob_lr = bob_start_learning_rate * (1.0 - progress) + min_bob_lr * progress
+        alice_lr = alice_start_learning_rate * (1.0 - progress) + min_alice_lr * progress
+
         plaintext = generate_random_message()
         plain_bits = text_to_bits(plaintext)
         
@@ -178,9 +188,8 @@ def train(load=False):
         
         bob_error = np.mean((plain_bits - decrypted_bits) ** 2)
         bob_errors.append(bob_error)
-        
-        bob.update(plain_bits, learning_rate=0.02)
-        
+
+        bob.update(plain_bits, learning_rate=bob_lr)
 
         feedback = ciphertext
         # if np.random.rand() < 0.001:  # 0.1% chance to simulate Eves attack
@@ -190,7 +199,7 @@ def train(load=False):
         #     print(f"Original ciphertext bits_to_text: '{bits_to_text(ciphertext)}'")
         #     print(f"Altered ciphertext bits_to_text:  '{bits_to_text(feedback)}'\n")
 
-        alice.update(feedback, learning_rate=0.01)
+        alice.update(feedback, learning_rate=alice_lr)
         
         decrypted_text = bits_to_text(decrypted_bits)
         if plaintext == decrypted_text:
