@@ -31,12 +31,12 @@ def detect_and_escape_local_minimum(network, errors, window_size=10000, threshol
         print(f"\n[!] Bob appears stuck in local minimum. Recent avg error: {recent_avg:.6f}")
         print(f"    Previous improvements: {previous_improvement:.6f} → {recent_improvement:.6f}")
         print(f"    Applying gentle perturbation to help escape local minimum...")
-        
-        error_mask = np.abs(network.out - network.x[:len(network.out)]) > np.mean(recent_avg)
+
+        error_mask = np.abs(network.last_error) > np.mean(recent_avg)
         noise_w = np.random.randn(*network.w.shape) * perturbation_factor * np.std(network.w)
         noise_b = np.random.randn(*network.b.shape) * perturbation_factor * np.std(network.b)
         
-        noise_w = noise_w * error_mask.reshape(-1, 1)
+        noise_w = noise_w * error_mask
         noise_b = noise_b * error_mask
         
         network.w += noise_w
@@ -100,6 +100,7 @@ class SimpleNetwork:
 
         self.w = np.random.randn(input_size, output_size) * 0.1
         self.b = np.zeros(output_size)
+        self.last_error = np.zeros(output_size)
         
     def forward(self, x):
         """Forward pass with tanh"""
@@ -111,6 +112,7 @@ class SimpleNetwork:
     def update(self, target, learning_rate=0.08):
         """Simple supervised update - for now maybe one layer - late prolly more"""
         error = target - self.out
+        self.last_error = error
         
         d_out = error * (1 - self.out ** 2)
         d_w = np.outer(self.x, d_out)
