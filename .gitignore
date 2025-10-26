@@ -205,3 +205,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+# temp ignored
+alice_temp.pth
+bob_temp.pth
+key.npy
+README_IMPLEMENTATION.md
+QUICKSTART.md
+CHANGES.md
+IMPROVEMENTS.md
