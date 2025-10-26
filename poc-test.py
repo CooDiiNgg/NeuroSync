@@ -131,7 +131,7 @@ class SimpleNetwork:
         self.w = data['w']
         self.b = data['b']
 
-def train(load=False):
+def train(load=False, prev_epochs=0):
     """Train Alice and Bob end-to-end with clear objective"""
     print("=" * 70)
     print("SIMPLIFIED NEURAL CRYPTO POC - Binary Representation")
@@ -170,6 +170,12 @@ def train(load=False):
     alice_start_learning_rate = 0.01
     min_bob_lr = 0.0002
     min_alice_lr = 0.0001
+
+    if prev_epochs > 0:
+        bob_start_learning_rate *= (0.9 ** prev_epochs)
+        alice_start_learning_rate *= (0.9 ** prev_epochs)
+        print(f"Adjusted learning rates for previous {prev_epochs} epochs.")
+        print(f"  Bob LR start: {bob_start_learning_rate:.6f}, Alice LR start: {alice_start_learning_rate:.6f}\n")
 
     for episode in range(TRAINING_EPISODES):
 
@@ -309,16 +315,20 @@ def test_saved():
 if __name__ == "__main__":
     import sys
     epoch = 1
+    prev_epochs = 0
 
     if len(sys.argv) > 1 and sys.argv[1] == "test":
         test_saved()
     elif len(sys.argv) > 1 and sys.argv[1] == "load":
         if len(sys.argv) > 2 and re.match(r"^\d+$", sys.argv[2]):
             epoch = int(sys.argv[2])
+            if len(sys.argv) > 3 and re.match(r"^\d+$", sys.argv[3]):
+                prev_epochs = int(sys.argv[3])
         print("Now trying a different method by retraining from saved networks...")
         for e in range(epoch):
             print(f"--- Epoch {e + 1}/{epoch} ---")
-            train(load=True)
+            train(load=True, prev_epochs=prev_epochs)
+            prev_epochs += 1
     else:
         if len(sys.argv) > 1 and re.match(r"^\d+$", sys.argv[1]):
             epoch = int(sys.argv[1])
@@ -326,7 +336,9 @@ if __name__ == "__main__":
         print("=" * 70)
         train()
         epoch -= 1
+        prev_epochs = 1
         for e in range(epoch):
             print(f"--- Epoch {e + 1}/{epoch} ---")
-            train(load=True)
+            train(load=True, prev_epochs=prev_epochs)
+            prev_epochs += 1
         print("=" * 70)
