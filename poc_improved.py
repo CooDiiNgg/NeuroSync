@@ -147,16 +147,28 @@ def train(load=False):
     bob_optimizer = optim.Adam(bob.parameters(), lr=0.001, weight_decay=1e-5)
     alice_optimizer = optim.Adam(alice.parameters(), lr=0.001, weight_decay=1e-5)
     
-    bob_scheduler = optim.lr_scheduler.ReduceLROnPlateau(bob_optimizer, mode='min', factor=0.5, patience=50)
-    alice_scheduler = optim.lr_scheduler.ReduceLROnPlateau(alice_optimizer, mode='min', factor=0.5, patience=50)
+    bob_scheduler = optim.lr_scheduler.ReduceLROnPlateau(bob_optimizer, mode='min', factor=0.5, patience=20)
+    alice_scheduler = optim.lr_scheduler.ReduceLROnPlateau(alice_optimizer, mode='min', factor=0.5, patience=20)
 
     print(f"Training for {TRAINING_EPISODES} episodes...")
     print("=" * 70)
     
     bob_errors = []
     perfect_count = 0
-    
-    for episode in range(TRAINING_EPISODES):
+
+    if load and os.path.exists('training_state.pth'):
+        print("Loading training state...")
+        training_state = torch.load('training_state.pth', map_location=device)
+        bob_optimizer.load_state_dict(training_state['bob_optimizer'])
+        alice_optimizer.load_state_dict(training_state['alice_optimizer'])
+        bob_scheduler.load_state_dict(training_state['bob_scheduler'])
+        alice_scheduler.load_state_dict(training_state['alice_scheduler'])
+        start_episode = training_state['episode'] + 1 if training_state['episode'] + 1 < TRAINING_EPISODES else 0
+        print("Loaded training state!\n")
+    else:
+        start_episode = 0
+
+    for episode in range(start_episode, TRAINING_EPISODES):
         plaintext = generate_random_message()
         plain_bits = text_to_bits(plaintext)
         
@@ -228,6 +240,14 @@ def train(load=False):
                             correct += 1
                 print(f"  Score: {correct}/{len(test_words)} ({100*correct/len(test_words):.0f}%)")
                 
+                torch.save({
+                    'episode': episode,
+                    'bob_optimizer': bob_optimizer.state_dict(),
+                    'alice_optimizer': alice_optimizer.state_dict(),
+                    'bob_scheduler': bob_scheduler.state_dict(),
+                    'alice_scheduler': alice_scheduler.state_dict()
+                }, 'training_state.pth')
+
                 if correct == len(test_words) and recent_perfect > 2480:
                     print(f"\n Perfect performance achieved! Stopping early at episode {episode + 1}")
                     break
@@ -236,6 +256,15 @@ def train(load=False):
     print("Saving networks...")
     alice.save('alice_improved.pth')
     bob.save('bob_improved.pth')
+
+    torch.save({
+        'episode': episode,
+        'bob_optimizer': bob_optimizer.state_dict(),
+        'alice_optimizer': alice_optimizer.state_dict(),
+        'bob_scheduler': bob_scheduler.state_dict(),
+        'alice_scheduler': alice_scheduler.state_dict()
+    }, 'training_state.pth')
+    
     print("Saved!\n")
     
     print("=" * 70)
