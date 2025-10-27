@@ -36,7 +36,7 @@ def text_to_bits(text):
             val = 26
 
         for i in range(4, -1, -1):
-            bits.append(1.0 if (val >> i) & 1 else 0.0)
+            bits.append(1.0 if (val >> i) & 1 else -1.0)
     return torch.tensor(bits, dtype=torch.float32, device=device)
 
 
@@ -90,12 +90,11 @@ class ImprovedNetwork(nn.Module):
     
     def forward(self, x):
         """Forward pass with multiple layers"""
-        x = torch.relu(self.fc1(x))
+        x = torch.tanh(self.fc1(x))
         x = self.dropout(x)
-        x = torch.relu(self.fc2(x))
+        x = torch.tanh(self.fc2(x))
         x = self.dropout(x)
-        x = self.fc3(x)
-        # trying to go raw...
+        x = torch.tanh(self.fc3(x))
         return x
     
     def save(self, filename):
@@ -124,7 +123,7 @@ def train(load=False):
         key = torch.tensor(key_np, dtype=torch.float32, device=device)
         print(f"Loaded {len(key)}-bit key\n")
     else:
-        key_np = np.random.choice([0.0, 1.0], KEY_SIZE * 5)
+        key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 5)
         np.save('key.npy', key_np)
         key = torch.tensor(key_np, dtype=torch.float32, device=device)
         print(f"Generated {len(key)}-bit key\n")
@@ -144,12 +143,12 @@ def train(load=False):
     print(f"  Hidden: {HIDDEN_SIZE} units")
     print(f"  Architecture: Input → {HIDDEN_SIZE} → {HIDDEN_SIZE} → Output\n")
     
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.MSELoss()
     bob_optimizer = optim.Adam(bob.parameters(), lr=0.001, weight_decay=1e-5)
     alice_optimizer = optim.Adam(alice.parameters(), lr=0.001, weight_decay=1e-5)
     
-    bob_scheduler = optim.lr_scheduler.ReduceLROnPlateau(bob_optimizer, mode='min', factor=0.5, patience=5000)
-    alice_scheduler = optim.lr_scheduler.ReduceLROnPlateau(alice_optimizer, mode='min', factor=0.5, patience=5000)
+    bob_scheduler = optim.lr_scheduler.ReduceLROnPlateau(bob_optimizer, mode='min', factor=0.5, patience=50)
+    alice_scheduler = optim.lr_scheduler.ReduceLROnPlateau(alice_optimizer, mode='min', factor=0.5, patience=50)
 
     print(f"Training for {TRAINING_EPISODES} episodes...")
     print("=" * 70)
@@ -165,9 +164,7 @@ def train(load=False):
         bob.train()
 
         alice_input = torch.cat([plain_bits, key])
-        ciphertext_old = alice(alice_input)
-
-        ciphertext = torch.sigmoid(ciphertext_old)
+        ciphertext = alice(alice_input)
 
         bob_input = torch.cat([ciphertext, key])
         decrypted_bits = bob(bob_input)
@@ -207,7 +204,7 @@ def train(load=False):
             print(f"  Last example:")
             print(f"    Original:  '{plaintext}'")
             print(f"    Decrypted: '{decrypted_text}'")
-            ciphertext_readable = bits_to_text(ciphertext_old)
+            ciphertext_readable = bits_to_text(ciphertext)
             print(f"    Encrypted: '{ciphertext_readable}'")
             
             if (episode + 1) % 10000 == 0:
@@ -222,8 +219,7 @@ def train(load=False):
                         pb = text_to_bits(word)
                         ai = torch.cat([pb, key])
                         ciph = alice(ai)
-                        ciph_bob = torch.sigmoid(ciph)
-                        bi = torch.cat([ciph_bob, key])
+                        bi = torch.cat([ciph, key])
                         dec_b = bob(bi)
                         dec = bits_to_text(dec_b)
                         match = "YES:" if dec == word else "NO:"
@@ -257,15 +253,14 @@ def train(load=False):
                    "alice and bob   ", "encryption works"]
     correct = 0
 
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.MSELoss()
     
     with torch.no_grad():
         for word in test_words:
             pb = text_to_bits(word)
             ai = torch.cat([pb, key])
             ciph = alice(ai)
-            ciph_bob = torch.sigmoid(ciph)
-            bi = torch.cat([ciph_bob, key])
+            bi = torch.cat([ciph, key])
             dec_b = bob(bi)
             dec = bits_to_text(dec_b)
             
@@ -311,7 +306,7 @@ def test_saved():
                   for i in range(0, 26 - MESSAGE_LENGTH + 1)]
     test_words += ["hello world     ", "neural network  ", "deep learning   "]
     
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.MSELoss()
     correct = 0
     
     with torch.no_grad():
@@ -319,8 +314,7 @@ def test_saved():
             pb = text_to_bits(word)
             ai = torch.cat([pb, key])
             ciph = alice(ai)
-            ciph_bob = torch.sigmoid(ciph)
-            bi = torch.cat([ciph_bob, key])
+            bi = torch.cat([ciph, key])
             dec_b = bob(bi)
             dec = bits_to_text(dec_b)
             
