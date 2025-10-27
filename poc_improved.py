@@ -160,38 +160,27 @@ def train(load=False):
         plaintext = generate_random_message()
         plain_bits = text_to_bits(plaintext)
         
-        alice.eval()
-        bob.train()
-        
-        with torch.no_grad():
-            alice_input = torch.cat([plain_bits, key])
-            ciphertext = alice(alice_input)
-        
-        bob_input = torch.cat([ciphertext, key])
-        decrypted_bits = bob(bob_input)
-        
-        bob_loss = criterion(decrypted_bits, plain_bits)
-        bob_errors.append(bob_loss.item())
-        
-        bob_optimizer.zero_grad()
-        bob_loss.backward()
-        torch.nn.utils.clip_grad_norm_(bob.parameters(), max_norm=1.0)
-        bob_optimizer.step()
-        
         alice.train()
-        bob.eval()
-        
+        bob.train()
+
         alice_input = torch.cat([plain_bits, key])
         ciphertext = alice(alice_input)
-        
+
         bob_input = torch.cat([ciphertext, key])
         decrypted_bits = bob(bob_input)
-        
-        alice_loss = criterion(decrypted_bits, plain_bits)
-        
+
+        loss = criterion(decrypted_bits, plain_bits)
+        bob_errors.append(loss.item())
+
+        bob_optimizer.zero_grad()
         alice_optimizer.zero_grad()
-        alice_loss.backward()
-        torch.nn.utils.clip_grad_norm_(alice.parameters(), max_norm=1.0)
+
+        loss.backward()
+
+        torch.nn.utils.clip_grad_norm_(bob.parameters(), 1.0)
+        torch.nn.utils.clip_grad_norm_(alice.parameters(), 1.0)
+
+        bob_optimizer.step()
         alice_optimizer.step()
         
         if episode % 1000 == 0:
