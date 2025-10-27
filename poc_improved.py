@@ -215,7 +215,8 @@ def train(load=False):
             print(f"  Last example:")
             print(f"    Original:  '{plaintext}'")
             print(f"    Decrypted: '{decrypted_text}'")
-            print(f"    Encrypted: '{ciphertext}'")
+            ciphertext_readable = bits_to_text(ciphertext)
+            print(f"    Encrypted: '{ciphertext_readable}'")
             
             if (episode + 1) % 10000 == 0:
                 alice.eval()
