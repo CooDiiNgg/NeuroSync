@@ -147,8 +147,8 @@ def train(load=False):
     bob_optimizer = optim.Adam(bob.parameters(), lr=0.001, weight_decay=1e-5)
     alice_optimizer = optim.Adam(alice.parameters(), lr=0.001, weight_decay=1e-5)
     
-    bob_scheduler = optim.lr_scheduler.ReduceLROnPlateau(bob_optimizer, mode='min', factor=0.5, patience=20)
-    alice_scheduler = optim.lr_scheduler.ReduceLROnPlateau(alice_optimizer, mode='min', factor=0.5, patience=20)
+    bob_scheduler = optim.lr_scheduler.ReduceLROnPlateau(bob_optimizer, mode='min', factor=0.5, patience=40)
+    alice_scheduler = optim.lr_scheduler.ReduceLROnPlateau(alice_optimizer, mode='min', factor=0.5, patience=40)
 
     print(f"Training for {TRAINING_EPISODES} episodes...")
     print("=" * 70)
@@ -264,7 +264,7 @@ def train(load=False):
         'bob_scheduler': bob_scheduler.state_dict(),
         'alice_scheduler': alice_scheduler.state_dict()
     }, 'training_state.pth')
-    
+
     print("Saved!\n")
     
     print("=" * 70)
