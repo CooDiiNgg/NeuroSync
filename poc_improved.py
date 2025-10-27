@@ -36,7 +36,7 @@ def text_to_bits(text):
             val = 26
 
         for i in range(4, -1, -1):
-            bits.append(1.0 if (val >> i) & 1 else -1.0)
+            bits.append(1.0 if (val >> i) & 1 else 0.0)
     return torch.tensor(bits, dtype=torch.float32, device=device)
 
 
@@ -94,7 +94,8 @@ class ImprovedNetwork(nn.Module):
         x = self.dropout(x)
         x = torch.tanh(self.fc2(x))
         x = self.dropout(x)
-        x = torch.tanh(self.fc3(x))
+        x = self.fc3(x)
+        # trying to go raw...
         return x
     
     def save(self, filename):
@@ -143,7 +144,7 @@ def train(load=False):
     print(f"  Hidden: {HIDDEN_SIZE} units")
     print(f"  Architecture: Input → {HIDDEN_SIZE} → {HIDDEN_SIZE} → Output\n")
     
-    criterion = nn.MSELoss()
+    criterion = nn.BCEWithLogitsLoss()
     bob_optimizer = optim.Adam(bob.parameters(), lr=0.001, weight_decay=1e-5)
     alice_optimizer = optim.Adam(alice.parameters(), lr=0.001, weight_decay=1e-5)
     
@@ -204,7 +205,7 @@ def train(load=False):
             print(f"  Last example:")
             print(f"    Original:  '{plaintext}'")
             print(f"    Decrypted: '{decrypted_text}'")
-            ciphertext_readable = bits_to_text(ciphertext)
+            ciphertext_readable = bits_to_text(torch.sigmoid(ciphertext))
             print(f"    Encrypted: '{ciphertext_readable}'")
             
             if (episode + 1) % 10000 == 0:
@@ -252,6 +253,8 @@ def train(load=False):
                    "machine learning", "deep neural nets",
                    "alice and bob   ", "encryption works"]
     correct = 0
+
+    criterion = nn.BCEWithLogitsLoss()
     
     with torch.no_grad():
         for word in test_words:
@@ -304,7 +307,7 @@ def test_saved():
                   for i in range(0, 26 - MESSAGE_LENGTH + 1)]
     test_words += ["hello world     ", "neural network  ", "deep learning   "]
     
-    criterion = nn.MSELoss()
+    criterion = nn.BCEWithLogitsLoss()
     correct = 0
     
     with torch.no_grad():
