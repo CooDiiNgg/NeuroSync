@@ -106,7 +106,7 @@ class ImprovedNetwork(nn.Module):
     
     def load(self, filename):
         """Load model state"""
-        checkpoint = torch.load(filename, map_location=device, weights_only=True)
+        checkpoint = torch.load(filename, map_location=device)
         self.load_state_dict(checkpoint['state_dict'])
 
 
@@ -124,7 +124,7 @@ def train(load=False):
         key = torch.tensor(key_np, dtype=torch.float32, device=device)
         print(f"Loaded {len(key)}-bit key\n")
     else:
-        key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 5)
+        key_np = np.random.choice([0.0, 1.0], KEY_SIZE * 5)
         np.save('key.npy', key_np)
         key = torch.tensor(key_np, dtype=torch.float32, device=device)
         print(f"Generated {len(key)}-bit key\n")
@@ -165,7 +165,9 @@ def train(load=False):
         bob.train()
 
         alice_input = torch.cat([plain_bits, key])
-        ciphertext = alice(alice_input)
+        ciphertext_old = alice(alice_input)
+
+        ciphertext = torch.sigmoid(ciphertext_old)
 
         bob_input = torch.cat([ciphertext, key])
         decrypted_bits = bob(bob_input)
@@ -205,7 +207,7 @@ def train(load=False):
             print(f"  Last example:")
             print(f"    Original:  '{plaintext}'")
             print(f"    Decrypted: '{decrypted_text}'")
-            ciphertext_readable = bits_to_text(torch.sigmoid(ciphertext))
+            ciphertext_readable = bits_to_text(ciphertext_old)
             print(f"    Encrypted: '{ciphertext_readable}'")
             
             if (episode + 1) % 10000 == 0:
@@ -220,7 +222,8 @@ def train(load=False):
                         pb = text_to_bits(word)
                         ai = torch.cat([pb, key])
                         ciph = alice(ai)
-                        bi = torch.cat([ciph, key])
+                        ciph_bob = torch.sigmoid(ciph)
+                        bi = torch.cat([ciph_bob, key])
                         dec_b = bob(bi)
                         dec = bits_to_text(dec_b)
                         match = "YES:" if dec == word else "NO:"
@@ -261,7 +264,8 @@ def train(load=False):
             pb = text_to_bits(word)
             ai = torch.cat([pb, key])
             ciph = alice(ai)
-            bi = torch.cat([ciph, key])
+            ciph_bob = torch.sigmoid(ciph)
+            bi = torch.cat([ciph_bob, key])
             dec_b = bob(bi)
             dec = bits_to_text(dec_b)
             
@@ -315,7 +319,8 @@ def test_saved():
             pb = text_to_bits(word)
             ai = torch.cat([pb, key])
             ciph = alice(ai)
-            bi = torch.cat([ciph, key])
+            ciph_bob = torch.sigmoid(ciph)
+            bi = torch.cat([ciph_bob, key])
             dec_b = bob(bi)
             dec = bits_to_text(dec_b)
             
