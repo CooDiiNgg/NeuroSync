@@ -9,7 +9,7 @@ import numpy as np
 
 MESSAGE_LENGTH = 16
 KEY_SIZE = 16
-TRAINING_EPISODES = 1000000
+TRAINING_EPISODES = 2000000
 
 with open("./words.txt", "r") as f:
        word_list = [line.strip() + " " * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
@@ -90,9 +90,9 @@ class ImprovedNetwork(nn.Module):
     
     def forward(self, x):
         """Forward pass with multiple layers"""
-        x = torch.tanh(self.fc1(x))
+        x = torch.relu(self.fc1(x))
         x = self.dropout(x)
-        x = torch.tanh(self.fc2(x))
+        x = torch.relu(self.fc2(x))
         x = self.dropout(x)
         x = self.fc3(x)
         # trying to go raw...
