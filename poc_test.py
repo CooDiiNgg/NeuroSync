@@ -144,15 +144,13 @@ def train(load=False):
     print(f"  Architecture: Input → {HIDDEN_SIZE} → {HIDDEN_SIZE} → Output\n")
     
     criterion = nn.MSELoss()
-    # SLIGHTLY lower learning rate for more stable convergence at high accuracy
+
     bob_optimizer = optim.Adam(bob.parameters(), lr=0.0008, weight_decay=1e-5)
     alice_optimizer = optim.Adam(alice.parameters(), lr=0.0008, weight_decay=1e-5)
     
-    # INCREASED patience from 40 to 100 - allows more time to fine-tune before reducing LR
-    bob_scheduler = optim.lr_scheduler.ReduceLROnPlateau(bob_optimizer, mode='min', 
-                                                          factor=0.5, patience=100, min_lr=1e-6)
-    alice_scheduler = optim.lr_scheduler.ReduceLROnPlateau(alice_optimizer, mode='min', 
-                                                            factor=0.5, patience=100, min_lr=1e-6)
+
+    bob_scheduler = optim.lr_scheduler.ReduceLROnPlateau(bob_optimizer, mode='min', factor=0.5, patience=100, min_lr=1e-6)
+    alice_scheduler = optim.lr_scheduler.ReduceLROnPlateau(alice_optimizer, mode='min', factor=0.5, patience=100, min_lr=1e-6)
 
     print(f"Training for {TRAINING_EPISODES} episodes...")
     print("=" * 70)
