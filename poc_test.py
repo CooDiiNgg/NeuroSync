@@ -145,12 +145,12 @@ def train(load=False):
     
     criterion = nn.MSELoss()
 
-    bob_optimizer = optim.Adam(bob.parameters(), lr=0.0008, weight_decay=1e-5)
-    alice_optimizer = optim.Adam(alice.parameters(), lr=0.0008, weight_decay=1e-5)
+    bob_optimizer = optim.Adam(bob.parameters(), lr=0.0008, weight_decay=1e-6)
+    alice_optimizer = optim.Adam(alice.parameters(), lr=0.0008, weight_decay=1e-6)
     
 
-    bob_scheduler = optim.lr_scheduler.ReduceLROnPlateau(bob_optimizer, mode='min', factor=0.5, patience=100, min_lr=1e-6)
-    alice_scheduler = optim.lr_scheduler.ReduceLROnPlateau(alice_optimizer, mode='min', factor=0.5, patience=100, min_lr=1e-6)
+    bob_scheduler = optim.lr_scheduler.ReduceLROnPlateau(bob_optimizer, mode='min', factor=0.5, patience=50, min_lr=1e-7)
+    alice_scheduler = optim.lr_scheduler.ReduceLROnPlateau(alice_optimizer, mode='min', factor=0.5, patience=50, min_lr=1e-7)
 
     print(f"Training for {TRAINING_EPISODES} episodes...")
     print("=" * 70)
