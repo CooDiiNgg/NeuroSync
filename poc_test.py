@@ -202,8 +202,8 @@ def train(load=False):
     alice_optimizer = optim.Adam(alice.parameters(), lr=0.001, weight_decay=1e-5)
     
 
-    bob_scheduler = optim.lr_scheduler.ReduceLROnPlateau(bob_optimizer, mode='min', factor=0.5, patience=30, min_lr=1e-7)
-    alice_scheduler = optim.lr_scheduler.ReduceLROnPlateau(alice_optimizer, mode='min', factor=0.5, patience=30, min_lr=1e-7)
+    bob_scheduler = optim.lr_scheduler.ReduceLROnPlateau(bob_optimizer, mode='min', factor=0.5, patience=30, min_lr=1e-8)
+    alice_scheduler = optim.lr_scheduler.ReduceLROnPlateau(alice_optimizer, mode='min', factor=0.5, patience=30, min_lr=1e-8)
 
     print(f"Training for {TRAINING_EPISODES} episodes...")
     print("=" * 70)
@@ -211,7 +211,6 @@ def train(load=False):
     bob_errors = []
     perfect_count = 0
     total_count = 0
-    best_accuracy = 0
 
     if load and os.path.exists('training_state_test.pth'):
         print("Loading training state...")
@@ -284,7 +283,7 @@ def train(load=False):
             perfect_count = 0
             total_count = 0
             
-            if (episode) % 10000 == 0:
+            if (batch_i + 1) % (10000 // BATCH_SIZE) == 0:
                 alice.eval()
                 bob.eval()
                 print(f"\n  Testing standard words:")
@@ -294,6 +293,7 @@ def train(load=False):
                 with torch.no_grad():
                     for word in test_words:
                         pb = text_to_bits(word)
+                        pb = torch.tensor(pb, dtype=torch.float32, device=device)
                         ai = torch.cat([pb, key])
                         ciph = alice(ai, single=True)
                         bi = torch.cat([ciph, key])
