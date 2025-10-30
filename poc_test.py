@@ -26,17 +26,20 @@ else:
 
 def text_to_bits(text):
     """Convert text to binary: each char as 5 bits (0-26 in binary)"""
-    text = text.lower().ljust(MESSAGE_LENGTH)[:MESSAGE_LENGTH]
+    text = text.ljust(MESSAGE_LENGTH)[:MESSAGE_LENGTH]
     bits = []
     for c in text:
         if c == ' ':
-            val = 26
+            val = 51
         elif 'a' <= c <= 'z':
             val = ord(c) - ord('a')
+        elif 'A' <= c <= 'Z':
+            val = ord(c) - ord('A')
+            val += 26
         else:
-            val = 26
+            val = 51
 
-        for i in range(4, -1, -1):
+        for i in range(5, -1, -1):
             bits.append(1.0 if (val >> i) & 1 else -1.0)
     return bits
 
@@ -55,19 +58,21 @@ def bits_to_text(bits):
         bits = bits.detach().cpu().numpy()
     
     chars = []
-    for i in range(0, len(bits), 5):
-        chunk = bits[i:i+5]
+    for i in range(0, len(bits), 6):
+        chunk = bits[i:i+6]
 
         val = 0
         for j, bit in enumerate(chunk):
             if bit > 0:
-                val |= (1 << (4 - j))
-        val = min(26, val)
+                val |= (1 << (5 - j))
+        val = min(51, val)
         
-        if val == 26:
+        if val == 51:
             chars.append(' ')
-        else:
+        elif val <= 25:
             chars.append(chr(val + ord('a')))
+        elif val <= 51:
+            chars.append(chr(val - 26 + ord('A')))
     return ''.join(chars)
 
 def bits_to_text_batch(bits):
@@ -164,7 +169,7 @@ def train(load=False):
     print("FIXED NEURAL CRYPTO POC - Optimized for 100% Convergence")
     print("=" * 70)
     
-    BIT_LENGTH = MESSAGE_LENGTH * 5
+    BIT_LENGTH = MESSAGE_LENGTH * 6
     HIDDEN_SIZE = 512
     
     if load and os.path.exists('key.npy'):
@@ -172,7 +177,7 @@ def train(load=False):
         key = torch.tensor(key_np, dtype=torch.float32, device=device)
         print(f"Loaded {len(key)}-bit key\n")
     else:
-        key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 5)
+        key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
         np.save('key.npy', key_np)
         key = torch.tensor(key_np, dtype=torch.float32, device=device)
         print(f"Generated {len(key)}-bit key\n")
