@@ -9,8 +9,8 @@ import numpy as np
 
 MESSAGE_LENGTH = 16
 KEY_SIZE = 16
-TRAINING_EPISODES = 2000000
-BATCH_SIZE = 32
+TRAINING_EPISODES = 20000000
+BATCH_SIZE = 64
 
 with open("./words.txt", "r") as f:
        word_list = [line.strip() + " " * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
@@ -207,8 +207,8 @@ def train(load=False):
     alice_optimizer = optim.Adam(alice.parameters(), lr=0.001, weight_decay=1e-5)
     
 
-    bob_scheduler = optim.lr_scheduler.ReduceLROnPlateau(bob_optimizer, mode='min', factor=0.5, patience=30, min_lr=1e-8)
-    alice_scheduler = optim.lr_scheduler.ReduceLROnPlateau(alice_optimizer, mode='min', factor=0.5, patience=30, min_lr=1e-8)
+    bob_scheduler = optim.lr_scheduler.ReduceLROnPlateau(bob_optimizer, mode='min', factor=0.5, patience=30, min_lr=1e-9)
+    alice_scheduler = optim.lr_scheduler.ReduceLROnPlateau(alice_optimizer, mode='min', factor=0.5, patience=30, min_lr=1e-9)
 
     print(f"Training for {TRAINING_EPISODES} episodes...")
     print("=" * 70)
