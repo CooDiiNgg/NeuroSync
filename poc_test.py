@@ -219,14 +219,11 @@ def train(load=False):
         alice_optimizer.load_state_dict(training_state['alice_optimizer'])
         bob_scheduler.load_state_dict(training_state['bob_scheduler'])
         alice_scheduler.load_state_dict(training_state['alice_scheduler'])
-        start_episode = training_state['episode'] + 1 if training_state['episode'] + 1 < TRAINING_EPISODES else 0
         print("Loaded training state!\n")
-    else:
-        start_episode = 0
 
     num_of_batches = TRAINING_EPISODES // BATCH_SIZE
 
-    for batch_i in range(start_episode // BATCH_SIZE, num_of_batches):
+    for batch_i in range(0, num_of_batches):
         plaintexts = generate_random_messages(BATCH_SIZE)
         plain_bits_batch = text_to_bits_batch(plaintexts)
         
@@ -306,7 +303,6 @@ def train(load=False):
                 print(f"  Score: {correct}/{len(test_words)} ({100*correct/len(test_words):.0f}%)")
                 
                 torch.save({
-                    'episode': episode,
                     'bob_optimizer': bob_optimizer.state_dict(),
                     'alice_optimizer': alice_optimizer.state_dict(),
                     'bob_scheduler': bob_scheduler.state_dict(),
@@ -323,7 +319,6 @@ def train(load=False):
     bob.save('bob_test.pth')
 
     torch.save({
-        'episode': episode,
         'bob_optimizer': bob_optimizer.state_dict(),
         'alice_optimizer': alice_optimizer.state_dict(),
         'bob_scheduler': bob_scheduler.state_dict(),
