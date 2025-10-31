@@ -30,14 +30,14 @@ def text_to_bits(text):
     bits = []
     for c in text:
         if c == ' ':
-            val = 51
+            val = 52
         elif 'a' <= c <= 'z':
             val = ord(c) - ord('a')
         elif 'A' <= c <= 'Z':
             val = ord(c) - ord('A')
             val += 26
         else:
-            val = 51
+            val = 52
 
         for i in range(5, -1, -1):
             bits.append(1.0 if (val >> i) & 1 else -1.0)
@@ -65,9 +65,9 @@ def bits_to_text(bits):
         for j, bit in enumerate(chunk):
             if bit > 0:
                 val |= (1 << (5 - j))
-        val = min(51, val)
-        
-        if val == 51:
+        val = min(52, val)
+
+        if val == 52:
             chars.append(' ')
         elif val <= 25:
             chars.append(chr(val + ord('a')))
