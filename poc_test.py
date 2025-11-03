@@ -97,24 +97,41 @@ def generate_random_messages(batch_size):
         messages.append(generate_random_message())
     return messages
 
+
+class ResidualBlock(nn.Module):
+    """Residual block - perhaps this will fix the plateauing issue"""
+    def __init__(self, size, dropout=0.05):
+        super(ResidualBlock, self).__init__()
+        self.fc = nn.Linear(size, size)
+        self.bn = nn.BatchNorm1d(size, momentum=0.05)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        residual = x
+        out = torch.tanh(self.bn(self.fc(x)))
+        out = self.dropout(out)
+        out += residual
+        return out
+
 class ImprovedNetwork(nn.Module):
     """Improved multi-layer network with proper architecture"""
     def __init__(self, input_size, hidden_size, output_size, name="net"):
         super(ImprovedNetwork, self).__init__()
         self.name = name
         
-        self.fc1 = nn.Linear(input_size, hidden_size)
-        self.bn1 = nn.BatchNorm1d(hidden_size, momentum=0.1)
+        self.input_projection = nn.Linear(input_size, hidden_size)
+        self.input_bn = nn.BatchNorm1d(hidden_size, momentum=0.05)
 
-        self.fc2 = nn.Linear(hidden_size, hidden_size)
-        self.bn2 = nn.BatchNorm1d(hidden_size, momentum=0.1)
+        self.residual_blocks = nn.ModuleList([
+            ResidualBlock(hidden_size, dropout=0.05) for _ in range(5)
+        ])
 
-        self.fc3 = nn.Linear(hidden_size, hidden_size)
-        self.bn3 = nn.BatchNorm1d(hidden_size, momentum=0.1)
+        self.pre_out = nn.Linear(hidden_size, hidden_size)
+        self.pre_out_bn = nn.BatchNorm1d(hidden_size, momentum=0.05)
 
-        self.fc4 = nn.Linear(hidden_size, output_size)
+        self.out = nn.Linear(hidden_size, output_size)
         
-        self.dropout = nn.Dropout(0.07)
+        self.temperature = nn.Parameter(torch.tensor(1.0))
         
         self._initialize_weights()
         
@@ -122,8 +139,8 @@ class ImprovedNetwork(nn.Module):
         """Xavier initialization for better gradient flow"""
         for m in self.modules():
             if isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight, nonlinearity='tanh', mode='fan_in')
-                nn.init.zeros_(m.bias)
+                nn.init.kaiming_normal_(m.weight, nonlinearity='leaky_relu', mode='fan_in', a=0.01)
+                nn.init.constant_(m.bias, 0.01)
             elif isinstance(m, nn.BatchNorm1d):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
@@ -133,22 +150,19 @@ class ImprovedNetwork(nn.Module):
         if single:
             self.eval()
             with torch.no_grad():
-                x = torch.tanh(self.bn1(self.fc1(x.unsqueeze(0)))).squeeze(0)
-                x = self.dropout(x)
-                x = torch.tanh(self.bn2(self.fc2(x.unsqueeze(0)))).squeeze(0)
-                x = self.dropout(x)
-                x = torch.tanh(self.bn3(self.fc3(x.unsqueeze(0)))).squeeze(0)
-                x = self.dropout(x)
-                x = torch.tanh(self.fc4(x))
+                x = torch.tanh(self.input_bn(self.input_projection(x.unsqueeze(0))))
+                for block in self.residual_blocks:
+                    x = block(x)
+                x = torch.tanh(self.pre_out_bn(self.pre_out(x)))
+                x = torch.tanh(self.out(x)/self.temperature) * self.temperature
+                x = x.squeeze(0)
             self.train()
         else:
-            x = torch.tanh(self.bn1(self.fc1(x)))
-            x = self.dropout(x)
-            x = torch.tanh(self.bn2(self.fc2(x)))
-            x = self.dropout(x)
-            x = torch.tanh(self.bn3(self.fc3(x)))
-            x = self.dropout(x)
-            x = torch.tanh(self.fc4(x))
+            x = torch.tanh(self.input_bn(self.input_projection(x)))
+            for block in self.residual_blocks:
+                x = block(x)
+            x = torch.tanh(self.pre_out_bn(self.pre_out(x)))
+            x = torch.tanh(self.out(x)/self.temperature) * self.temperature
         return x
     
     def save(self, filename):
@@ -170,7 +184,7 @@ def train(load=False):
     print("=" * 70)
     
     BIT_LENGTH = MESSAGE_LENGTH * 6
-    HIDDEN_SIZE = 512
+    HIDDEN_SIZE = 768
     
     if load and os.path.exists('key.npy'):
         key_np = np.load('key.npy')
@@ -198,17 +212,16 @@ def train(load=False):
     print(f"  Key: {len(key)} bits")
     print(f"  Hidden: {HIDDEN_SIZE} units")
     print(f"  Batch Size: {BATCH_SIZE}")
-    print(f"  Architecture: Input -> {HIDDEN_SIZE} -> {HIDDEN_SIZE} -> {HIDDEN_SIZE} -> Output\n")
     print("Word list size:", len(word_list))
     
-    criterion = nn.MSELoss()
+    mse_criterion = nn.MSELoss()
+    smooth_l1_criterion = nn.SmoothL1Loss()
 
-    bob_optimizer = optim.Adam(bob.parameters(), lr=0.001, weight_decay=1e-5)
-    alice_optimizer = optim.Adam(alice.parameters(), lr=0.001, weight_decay=1e-5)
-    
+    bob_optimizer = optim.AdamW(bob.parameters(), lr=0.001, weight_decay=1e-4, betas=(0.9, 0.999))
+    alice_optimizer = optim.AdamW(alice.parameters(), lr=0.001, weight_decay=1e-4, betas=(0.9, 0.999))
 
-    bob_scheduler = optim.lr_scheduler.ReduceLROnPlateau(bob_optimizer, mode='min', factor=0.5, patience=30, min_lr=1e-9)
-    alice_scheduler = optim.lr_scheduler.ReduceLROnPlateau(alice_optimizer, mode='min', factor=0.5, patience=30, min_lr=1e-9)
+    bob_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(bob_optimizer, T_0=1000, T_mult=2, eta_min=1e-7)
+    alice_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(alice_optimizer, T_0=1000, T_mult=2, eta_min=1e-7)
 
     print(f"Training for {TRAINING_EPISODES} episodes...")
     print("=" * 70)
@@ -216,20 +229,27 @@ def train(load=False):
     bob_errors = []
     perfect_count = 0
     total_count = 0
+    best_accuracy = 0.0
+    plateau_count = 0
+    use_smooth_l1 = False
 
     if load and os.path.exists('training_state_test.pth'):
         print("Loading training state...")
         training_state = torch.load('training_state_test.pth', map_location=device)
         bob_optimizer.load_state_dict(training_state['bob_optimizer'])
         alice_optimizer.load_state_dict(training_state['alice_optimizer'])
-        bob_scheduler.load_state_dict(training_state['bob_scheduler'])
-        alice_scheduler.load_state_dict(training_state['alice_scheduler'])
+        if 'best_accuracy' in training_state:
+            best_accuracy = training_state['best_accuracy']
         print("Loaded training state!\n")
 
     num_of_batches = TRAINING_EPISODES // BATCH_SIZE
 
     for batch_i in range(0, num_of_batches):
-        plaintexts = generate_random_messages(BATCH_SIZE)
+        if batch_i < 1000:
+            plaintexts = generate_random_messages(BATCH_SIZE//2)
+            plaintexts += plaintexts
+        else:
+            plaintexts = generate_random_messages(BATCH_SIZE)
         plain_bits_batch = text_to_bits_batch(plaintexts)
         
         alice.train()
@@ -241,7 +261,10 @@ def train(load=False):
         bob_input = torch.cat([ciphertext_batch, key_batch], dim=1)
         decrypted_bits_batch = bob(bob_input)
 
-        loss = criterion(decrypted_bits_batch, plain_bits_batch)
+        if use_smooth_l1:
+            loss = smooth_l1_criterion(decrypted_bits_batch, plain_bits_batch)
+        else:
+            loss = mse_criterion(decrypted_bits_batch, plain_bits_batch)
         bob_errors.append(loss.item())
 
         with torch.no_grad():
@@ -256,26 +279,36 @@ def train(load=False):
 
         loss.backward()
 
-        torch.nn.utils.clip_grad_norm_(bob.parameters(), 1.0)
-        torch.nn.utils.clip_grad_norm_(alice.parameters(), 1.0)
+        max_norm = 1.0 if loss.item() < 0.1 else 0.5
+        torch.nn.utils.clip_grad_norm_(bob.parameters(), max_norm)
+        torch.nn.utils.clip_grad_norm_(alice.parameters(), max_norm)
 
         bob_optimizer.step()
         alice_optimizer.step()
         
-        if batch_i % 100 == 0 and batch_i > 0:
-            avg_error = np.mean(bob_errors[-100:]) if len(bob_errors) >= 100 else np.mean(bob_errors)
-            bob_scheduler.step(avg_error)
-            alice_scheduler.step(avg_error)
+        bob_scheduler.step()
+        alice_scheduler.step()
         
         if (batch_i + 1) % (2500 // BATCH_SIZE) == 0:
             avg_error = np.mean(bob_errors[-100:]) if len(bob_errors) >= 100 else np.mean(bob_errors)
-            recent_accuracy = 100 * perfect_count / total_count
+            recent_accuracy = 100 * perfect_count / total_count if total_count > 0 else 0.0
             episode = (batch_i + 1) * BATCH_SIZE
+
+            if recent_accuracy > best_accuracy:
+                best_accuracy = recent_accuracy
+                plateau_count = 0
+                use_smooth_l1 = False
+            else:
+                plateau_count += 1
+                if plateau_count >= 10 and recent_accuracy < 90.0:
+                    use_smooth_l1 = True
 
             print(f"\nEpisode {episode}/{TRAINING_EPISODES}")
             print(f"  Avg Bob Error: {avg_error:.6f}")
             print(f"  Perfect (last 2500): {perfect_count} ({recent_accuracy:.1f}%)")
-            print(f"  Current LR: {bob_optimizer.param_groups[0]['lr']:.6f}")
+            print(f"  Current LR: {bob_optimizer.param_groups[0]['lr']:.2e}")
+            print(f"  Plateau Count: {plateau_count}")
+            print(f"  Temperature: Alice={alice.temperature.item():.4f}, Bob={bob.temperature.item():.4f}")
             print(f"  Last example:")
             print(f"    Original:  '{plaintexts[-1]}'")
             print(f"    Decrypted: '{decrypted_texts[-1]}'")
@@ -310,11 +343,10 @@ def train(load=False):
                 torch.save({
                     'bob_optimizer': bob_optimizer.state_dict(),
                     'alice_optimizer': alice_optimizer.state_dict(),
-                    'bob_scheduler': bob_scheduler.state_dict(),
-                    'alice_scheduler': alice_scheduler.state_dict()
+                    'best_accuracy': best_accuracy
                 }, 'training_state_test.pth')
 
-                if correct == len(test_words) and recent_accuracy >= 99.5:
+                if correct == len(test_words) and recent_accuracy >= 99.0:
                     print(f"\n Perfect performance achieved! Stopping early at episode {episode + 1}")
                     break
     
@@ -326,8 +358,7 @@ def train(load=False):
     torch.save({
         'bob_optimizer': bob_optimizer.state_dict(),
         'alice_optimizer': alice_optimizer.state_dict(),
-        'bob_scheduler': bob_scheduler.state_dict(),
-        'alice_scheduler': alice_scheduler.state_dict()
+        'best_accuracy': best_accuracy
     }, 'training_state_test.pth')
     
     print("Saved!\n")
@@ -342,8 +373,7 @@ def train(load=False):
     test_batches = 5
     correct = 0
 
-    criterion = nn.MSELoss()
-    
+    criterion = nn.MSELoss()    
     with torch.no_grad():
         for _ in range(test_batches):
             test_batch = generate_random_messages(BATCH_SIZE)
