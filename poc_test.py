@@ -392,69 +392,105 @@ def train(load=False):
                 print(f"{match} '{original}' → '{decrypted}' | Error: {error:.6f}")
                 if original == decrypted:
                     correct += 1
+        # now some real wods to test:
+        with open("./real_words.txt", "r") as f:
+            real_words = [line.strip() + " " * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
+        for i in range(0, len(real_words), BATCH_SIZE):
+            batch_words = real_words[i:i+BATCH_SIZE]
+            if len(batch_words) < BATCH_SIZE:
+                for w in batch_words:
+                    test_bits_single = text_to_bits(w)
+                    test_bits_single = torch.tensor(test_bits_single, dtype=torch.float32, device=device)
+                    ai = torch.cat([test_bits_single, key])
+                    ciph = alice(ai, single=True)
+                    bi = torch.cat([ciph, key])
+                    dec_b = bob(bi, single=True)
+                    dec = bits_to_text(dec_b)
+                    match = "YES:" if w == dec else "NO:"
+                    print(f"{match} '{w}' → '{dec}' | Error: N/A")
+                    if w == dec:
+                        correct += 1
+                continue
+            test_bits = text_to_bits_batch(batch_words)
+
+            ai = torch.cat([test_bits, key_batch], dim=1)
+            ciph = alice(ai)
+            bi = torch.cat([ciph, key_batch], dim=1)
+            dec_b = bob(bi)
+            dec_texts = bits_to_text_batch(dec_b)
+            
+            error = criterion(dec_b, test_bits).item()
+            
+            for original, decrypted in zip(batch_words, dec_texts):
+                match = "YES:" if original == decrypted else "NO:"
+                print(f"{match} '{original}' → '{decrypted}' | Error: {error:.6f}")
+                if original == decrypted:
+                    correct += 1
     
     print(f"\n{'=' * 70}")
-    print(f"Final Score: {correct}/{5*BATCH_SIZE} ({100*correct/5*BATCH_SIZE:.1f}%)")
+    print(f"Final Score: {correct}/{5*BATCH_SIZE + len(real_words)} ({100*correct/(5*BATCH_SIZE):.1f}%)")
     print(f"{'=' * 70}")
 
 
-# def test_saved():
-#     """Test saved networks"""
-#     if not os.path.exists('alice_test.pth') or not os.path.exists('bob_test.pth'):
-#         print("No saved networks found. Train first.")
-#         return
+def test_saved():
+    """Test saved networks"""
+    if not os.path.exists('alice_test.pth') or not os.path.exists('bob_test.pth'):
+        print("No saved networks found. Train first.")
+        return
     
-#     print("Loading networks...")
-#     key_np = np.load('key.npy')
-#     key = torch.tensor(key_np, dtype=torch.float32, device=device)
+    print("Loading networks...")
+    key_np = np.load('key.npy')
+    key = torch.tensor(key_np, dtype=torch.float32, device=device)
+    key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
     
-#     BIT_LENGTH = MESSAGE_LENGTH * 5
-#     HIDDEN_SIZE = 256
-#     alice = ImprovedNetwork(BIT_LENGTH + len(key), HIDDEN_SIZE, BIT_LENGTH, "Alice").to(device)
-#     bob = ImprovedNetwork(BIT_LENGTH + len(key), HIDDEN_SIZE, BIT_LENGTH, "Bob").to(device)
-#     alice.load('alice_test.pth')
-#     bob.load('bob_test.pth')
+    BIT_LENGTH = MESSAGE_LENGTH * 6
+    HIDDEN_SIZE = 768
+    alice = ImprovedNetwork(BIT_LENGTH + len(key), HIDDEN_SIZE, BIT_LENGTH, "Alice").to(device)
+    bob = ImprovedNetwork(BIT_LENGTH + len(key), HIDDEN_SIZE, BIT_LENGTH, "Bob").to(device)
+    alice.load('alice_test.pth')
+    bob.load('bob_test.pth')
     
-#     alice.eval()
-#     bob.eval()
+    alice.eval()
+    bob.eval()
     
-#     print("Loaded\n")
-#     print("=" * 70)
-#     print("TESTING")
-#     print("=" * 70)
+    print("Loaded\n")
+    print("=" * 70)
+    print("TESTING")
+    print("=" * 70)
     
-#     test_words = [string.ascii_lowercase[i:i+MESSAGE_LENGTH] 
-#                   for i in range(0, 26 - MESSAGE_LENGTH + 1)]
-#     test_words += ["hello world     ", "neural network  ", "deep learning   "]
     
-#     criterion = nn.MSELoss()
-#     correct = 0
+    with open("./real_words.txt", "r") as f:
+        test_words = [line.strip() + " " * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
+    test_words += [word_list[np.random.randint(0, len(word_list))] for _ in range(50)]
     
-#     with torch.no_grad():
-#         for word in test_words:
-#             pb = text_to_bits(word)
-#             ai = torch.cat([pb, key])
-#             ciph = alice(ai)
-#             bi = torch.cat([ciph, key])
-#             dec_b = bob(bi)
-#             dec = bits_to_text(dec_b)
-            
-#             error = criterion(dec_b, pb).item()
-#             match = "YES:" if dec == word else "NO:"
-#             print(f"{match} '{word}' → '{dec}' | Error: {error:.6f}")
-#             if dec == word:
-#                 correct += 1
+    criterion = nn.MSELoss()
+    correct = 0
     
-#     print(f"\n{'=' * 70}")
-#     print(f"Score: {correct}/{len(test_words)} ({100*correct/len(test_words):.0f}%)")
+    with torch.no_grad():
+        for w in test_words:
+            test_bits = text_to_bits(w)
+            test_bits = torch.tensor(test_bits, dtype=torch.float32, device=device)
+            ai = torch.cat([test_bits, key])
+            ciph = alice(ai, single=True)
+            bi = torch.cat([ciph, key])
+            dec_b = bob(bi, single=True)
+            dec = bits_to_text(dec_b)
+            error = criterion(dec_b, test_bits).item()
+            match = "YES:" if w == dec else "NO:"
+            print(f"{match} '{w}' → '{dec}' | Error: {error:.6f}")
+            if w == dec:
+                correct += 1
+    
+    print(f"\n{'=' * 70}")
+    print(f"Score: {correct}/{len(test_words)} ({100*correct/len(test_words):.0f}%)")
 
 
 if __name__ == "__main__":
     import sys
     
     if len(sys.argv) > 1 and sys.argv[1] == "test":
-        # test_saved()
-        print("Testing saved networks is currently disabled.")
+        print("Testing saved networks...")
+        test_saved()
     elif len(sys.argv) > 1 and sys.argv[1] == "load":
         epoch = int(sys.argv[2]) if len(sys.argv) > 2 else 1
         print("Retraining from saved networks...")
