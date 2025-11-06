@@ -154,7 +154,7 @@ class ImprovedNetwork(nn.Module):
                 for block in self.residual_blocks:
                     x = block(x)
                 x = torch.tanh(self.pre_out_bn(self.pre_out(x)))
-                x = torch.tanh(self.out(x)/self.temperature) * self.temperature
+                x = torch.tanh(self.out(x)/self.temperature) * 1.2
                 x = x.squeeze(0)
             self.train()
         else:
@@ -162,7 +162,7 @@ class ImprovedNetwork(nn.Module):
             for block in self.residual_blocks:
                 x = block(x)
             x = torch.tanh(self.pre_out_bn(self.pre_out(x)))
-            x = torch.tanh(self.out(x)/self.temperature) * self.temperature
+            x = torch.tanh(self.out(x)/self.temperature) * 1.2
         return x
     
     def save(self, filename):
@@ -346,7 +346,7 @@ def train(load=False):
                     'best_accuracy': best_accuracy
                 }, 'training_state_test.pth')
 
-                if correct == len(test_words) and recent_accuracy >= 99.0:
+                if correct == len(test_words) and recent_accuracy >= 99.8:
                     print(f"\n Perfect performance achieved! Stopping early at episode {episode + 1}")
                     break
     
