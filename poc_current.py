@@ -279,13 +279,25 @@ def train(load=False):
             eve_loss = smooth_l1_criterion(eve_output, plain_bits_batch)
         else:
             eve_loss = mse_criterion(eve_output, plain_bits_batch)
+        
+        eve_errors.append(eve_loss.item())
+
+        eve_optimizer.zero_grad()
+
+        eve_loss.backward()
+
+        torch.nn.utils.clip_grad_norm_(eve.parameters(), 1.0)
+
+        eve_optimizer.step()
+        eve_scheduler.step()
 
         if use_smooth_l1:
             loss = smooth_l1_criterion(decrypted_bits_batch, plain_bits_batch)
         else:
             loss = mse_criterion(decrypted_bits_batch, plain_bits_batch)
         bob_errors.append(loss.item())
-        eve_errors.append(eve_loss.item())
+
+        loss += (1.0 - eve_loss) ** 2
 
         with torch.no_grad():
             decrypted_texts = bits_to_text_batch(decrypted_bits_batch)
@@ -297,15 +309,6 @@ def train(load=False):
             for pt, et in zip(plaintexts, eve_texts):
                 if pt == et:
                     eve_guess_count += 1
-
-        eve_optimizer.zero_grad()
-
-        eve_loss.backward()
-
-        torch.nn.utils.clip_grad_norm_(eve.parameters(), 1.0)
-
-        eve_optimizer.step()
-        eve_scheduler.step()
 
 
         bob_optimizer.zero_grad()
