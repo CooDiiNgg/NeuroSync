@@ -219,6 +219,8 @@ def train(load=False):
     
     mse_criterion = nn.MSELoss()
     smooth_l1_criterion = nn.SmoothL1Loss()
+    eve_mse_criterion = nn.MSELoss()
+    eve_smooth_l1_criterion = nn.SmoothL1Loss()
 
     bob_optimizer = optim.AdamW(bob.parameters(), lr=0.001, weight_decay=1e-4, betas=(0.9, 0.999))
     alice_optimizer = optim.AdamW(alice.parameters(), lr=0.001, weight_decay=1e-4, betas=(0.9, 0.999))
@@ -276,9 +278,9 @@ def train(load=False):
         eve_output = eve(ciphertext_batch)
 
         if eve_use_smooth_l1:
-            eve_loss = smooth_l1_criterion(eve_output, plain_bits_batch)
+            eve_loss = eve_smooth_l1_criterion(eve_output, plain_bits_batch)
         else:
-            eve_loss = mse_criterion(eve_output, plain_bits_batch)
+            eve_loss = eve_mse_criterion(eve_output, plain_bits_batch)
         
         eve_errors.append(eve_loss.item())
 
