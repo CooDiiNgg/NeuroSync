@@ -219,8 +219,6 @@ def train(load=False):
     
     mse_criterion = nn.MSELoss()
     smooth_l1_criterion = nn.SmoothL1Loss()
-    eve_mse_criterion = nn.MSELoss()
-    eve_smooth_l1_criterion = nn.SmoothL1Loss()
 
     bob_optimizer = optim.AdamW(bob.parameters(), lr=0.001, weight_decay=1e-4, betas=(0.9, 0.999))
     alice_optimizer = optim.AdamW(alice.parameters(), lr=0.001, weight_decay=1e-4, betas=(0.9, 0.999))
@@ -275,23 +273,33 @@ def train(load=False):
         bob_input = torch.cat([ciphertext_batch, key_batch], dim=1)
         decrypted_bits_batch = bob(bob_input)
 
-        eve_output = eve(ciphertext_batch)
+        for param in eve.parameters():
+            param.requires_grad = True
+        eve_output = eve(ciphertext_batch.detach())
 
         if eve_use_smooth_l1:
-            eve_loss = eve_smooth_l1_criterion(eve_output, plain_bits_batch)
+            eve_loss = smooth_l1_criterion(eve_output, plain_bits_batch)
         else:
-            eve_loss = eve_mse_criterion(eve_output, plain_bits_batch)
+            eve_loss = mse_criterion(eve_output, plain_bits_batch)
         
         eve_errors.append(eve_loss.item())
 
         eve_optimizer.zero_grad()
-
         eve_loss.backward()
-
         torch.nn.utils.clip_grad_norm_(eve.parameters(), 1.0)
-
         eve_optimizer.step()
         eve_scheduler.step()
+
+        for param in eve.parameters():
+            param.requires_grad = False
+
+        eve_output_alice = eve(ciphertext_batch)
+
+        if eve_use_smooth_l1:
+            eve_loss_alice = smooth_l1_criterion(eve_output_alice, plain_bits_batch)
+        else:
+            eve_loss_alice = mse_criterion(eve_output_alice, plain_bits_batch)
+
 
         if use_smooth_l1:
             loss = smooth_l1_criterion(decrypted_bits_batch, plain_bits_batch)
@@ -299,7 +307,6 @@ def train(load=False):
             loss = mse_criterion(decrypted_bits_batch, plain_bits_batch)
         bob_errors.append(loss.item())
 
-        # loss += (1.0 - eve_loss) ** 2
 
         with torch.no_grad():
             decrypted_texts = bits_to_text_batch(decrypted_bits_batch)
@@ -312,15 +319,17 @@ def train(load=False):
                 if pt == et:
                     eve_guess_count += 1
 
+        total_loss = loss - 0.1 * eve_loss_alice
 
         bob_optimizer.zero_grad()
         alice_optimizer.zero_grad()
 
-        loss.backward()
+        total_loss.backward()
 
         max_norm = 1.0 if loss.item() < 0.1 else 0.5
         torch.nn.utils.clip_grad_norm_(bob.parameters(), max_norm)
         torch.nn.utils.clip_grad_norm_(alice.parameters(), max_norm)
+
 
         bob_optimizer.step()
         alice_optimizer.step()
