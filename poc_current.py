@@ -299,7 +299,7 @@ def train(load=False):
             loss = mse_criterion(decrypted_bits_batch, plain_bits_batch)
         bob_errors.append(loss.item())
 
-        loss += (1.0 - eve_loss) ** 2
+        # loss += (1.0 - eve_loss) ** 2
 
         with torch.no_grad():
             decrypted_texts = bits_to_text_batch(decrypted_bits_batch)
