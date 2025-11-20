@@ -220,12 +220,13 @@ def train(load=False):
     mse_criterion = nn.MSELoss()
     smooth_l1_criterion = nn.SmoothL1Loss()
 
-    bob_optimizer = optim.AdamW(bob.parameters(), lr=0.001, weight_decay=1e-4, betas=(0.9, 0.999))
-    alice_optimizer = optim.AdamW(alice.parameters(), lr=0.001, weight_decay=1e-4, betas=(0.9, 0.999))
-    eve_optimizer = optim.AdamW(eve.parameters(), lr=0.001, weight_decay=1e-4, betas=(0.9, 0.999))
+    alice_and_bob_params = list(alice.parameters()) + list(bob.parameters())
+    
+    alice_and_bob_optimizer = optim.AdamW(alice_and_bob_params, lr=0.001, weight_decay=1e-4, betas=(0.9, 0.999))
+    eve_optimizer = optim.AdamW(eve.parameters(), lr=0.0005, weight_decay=1e-4, betas=(0.9, 0.999))
 
-    bob_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(bob_optimizer, T_0=1000, T_mult=2, eta_min=1e-7)
-    alice_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(alice_optimizer, T_0=1000, T_mult=2, eta_min=1e-7)
+    
+    alice_and_bob_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(alice_and_bob_optimizer, T_0=1000, T_mult=2, eta_min=1e-7)
     eve_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(eve_optimizer, T_0=1000, T_mult=2, eta_min=1e-7)
 
     print(f"Training for {TRAINING_EPISODES} episodes...")
@@ -241,11 +242,13 @@ def train(load=False):
     eve_use_smooth_l1 = False
     eve_guess_count = 0
 
+    EVE_TRAIN_SKIP = 2
+    ADVERSARIAL_WEIGHT = 1.0
+
     if load and os.path.exists('training_state_test.pth'):
         print("Loading training state...")
         training_state = torch.load('training_state_test.pth', map_location=device)
-        bob_optimizer.load_state_dict(training_state['bob_optimizer'])
-        alice_optimizer.load_state_dict(training_state['alice_optimizer'])
+        alice_and_bob_optimizer.load_state_dict(training_state['alice_and_bob_optimizer'])
         if 'eve_optimizer' in training_state:
             eve_optimizer.load_state_dict(training_state['eve_optimizer'])
         if 'best_accuracy' in training_state:
@@ -265,7 +268,7 @@ def train(load=False):
         alice.train()
         bob.train()
 
-        eve.train()
+        eve.eval()
 
         alice_input = torch.cat([plain_bits_batch, key_batch], dim=1)
         ciphertext_batch = alice(alice_input)
@@ -273,25 +276,17 @@ def train(load=False):
         bob_input = torch.cat([ciphertext_batch, key_batch], dim=1)
         decrypted_bits_batch = bob(bob_input)
 
-        for param in eve.parameters():
-            param.requires_grad = True
-        eve_output = eve(ciphertext_batch.detach())
+        # with torch.no_grad():
+        #     eve_output = eve(ciphertext_batch.detach())
 
-        if eve_use_smooth_l1:
-            eve_loss = smooth_l1_criterion(eve_output, plain_bits_batch)
-        else:
-            eve_loss = mse_criterion(eve_output, plain_bits_batch)
-        
-        eve_errors.append(eve_loss.item())
+        #     if eve_use_smooth_l1:
+        #         eve_loss = smooth_l1_criterion(eve_output, plain_bits_batch)
+        #     else:
+        #         eve_loss = mse_criterion(eve_output, plain_bits_batch)
 
-        eve_optimizer.zero_grad()
-        eve_loss.backward()
-        torch.nn.utils.clip_grad_norm_(eve.parameters(), 1.0)
-        eve_optimizer.step()
-        eve_scheduler.step()
+        #     eve_errors.append(eve_loss.item())
 
-        for param in eve.parameters():
-            param.requires_grad = False
+
 
         eve_output_alice = eve(ciphertext_batch)
 
@@ -319,10 +314,9 @@ def train(load=False):
                 if pt == et:
                     eve_guess_count += 1
 
-        total_loss = loss - 0.1 * eve_loss_alice
+        total_loss = loss - ADVERSARIAL_WEIGHT * eve_loss_alice
 
-        bob_optimizer.zero_grad()
-        alice_optimizer.zero_grad()
+        alice_and_bob_optimizer.zero_grad()
 
         total_loss.backward()
 
@@ -330,23 +324,43 @@ def train(load=False):
         torch.nn.utils.clip_grad_norm_(bob.parameters(), max_norm)
         torch.nn.utils.clip_grad_norm_(alice.parameters(), max_norm)
 
+        alice_and_bob_optimizer.step()
+        alice_and_bob_scheduler.step()
 
-        bob_optimizer.step()
-        alice_optimizer.step()
-        
-        bob_scheduler.step()
-        alice_scheduler.step()
+        if batch_i % EVE_TRAIN_SKIP == 0:
+            eve.train()
+            alice.eval()
+            bob.eval()
+
+            with torch.no_grad():
+                alice_input_eve = torch.cat([plain_bits_batch, key_batch], dim=1)
+                ciphertext_batch_eve = alice(alice_input_eve)
+            
+            eve_output = eve(ciphertext_batch_eve)
+            if eve_use_smooth_l1:
+                eve_loss = smooth_l1_criterion(eve_output, plain_bits_batch)
+            else:
+                eve_loss = mse_criterion(eve_output, plain_bits_batch)
+            eve_errors.append(eve_loss.item())
+            eve_optimizer.zero_grad()
+            eve_loss.backward()
+            torch.nn.utils.clip_grad_norm_(eve.parameters(), 0.5)
+            eve_optimizer.step()
+            eve_scheduler.step()
         
         if (batch_i + 1) % (2500 // BATCH_SIZE) == 0:
             avg_error = np.mean(bob_errors[-100:]) if len(bob_errors) >= 100 else np.mean(bob_errors)
-            recent_accuracy = 100 * perfect_count / total_count if total_count > 0 else 0.0
+            recent_accuracy = (100 * perfect_count / total_count) if total_count > 0 else 0.0
             episode = (batch_i + 1) * BATCH_SIZE
 
-            eve_accuracy = 100 * eve_guess_count / total_count if total_count > 0 else 0.0
+            eve_accuracy = (100 * eve_guess_count / total_count )if total_count > 0 else 0.0
             # TODO: need to fix this static switch logic a bit later
             if eve_accuracy > 80.0:
+                ADVERSARIAL_WEIGHT = min(2.0, ADVERSARIAL_WEIGHT * 1.2)
                 eve_use_smooth_l1 = False
             else:
+                if eve_accuracy < 20.0 and recent_accuracy > 85.0:
+                    ADVERSARIAL_WEIGHT = max(0.5, ADVERSARIAL_WEIGHT * 0.8)
                 eve_use_smooth_l1 = True
 
             if recent_accuracy > best_accuracy:
@@ -361,7 +375,6 @@ def train(load=False):
             print(f"\nEpisode {episode}/{TRAINING_EPISODES}")
             print(f"  Avg Bob Error: {avg_error:.6f}")
             print(f"  Perfect (last 2500): {perfect_count} ({recent_accuracy:.1f}%)")
-            print(f"  Current LR: {bob_optimizer.param_groups[0]['lr']:.2e}")
             print(f"  Plateau Count: {plateau_count}")
             print(f"  Temperature: Alice={alice.temperature.item():.4f}, Bob={bob.temperature.item():.4f}")
             print(f"  Last example:")
@@ -398,8 +411,7 @@ def train(load=False):
                 print(f"  Score: {correct}/{len(test_words)} ({100*correct/len(test_words):.0f}%)")
                 
                 torch.save({
-                    'bob_optimizer': bob_optimizer.state_dict(),
-                    'alice_optimizer': alice_optimizer.state_dict(),
+                    'alice_and_bob_optimizer': alice_and_bob_optimizer.state_dict(),
                     'eve_optimizer': eve_optimizer.state_dict(),
                     'best_accuracy': best_accuracy
                 }, 'training_state_test.pth')
@@ -415,8 +427,7 @@ def train(load=False):
     eve.save('eve_test.pth')
 
     torch.save({
-        'bob_optimizer': bob_optimizer.state_dict(),
-        'alice_optimizer': alice_optimizer.state_dict(),
+        'alice_and_bob_optimizer': alice_and_bob_optimizer.state_dict(),
         'eve_optimizer': eve_optimizer.state_dict(),
         'best_accuracy': best_accuracy
     }, 'training_state_test.pth')
