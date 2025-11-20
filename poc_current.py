@@ -276,8 +276,8 @@ def train(load=False):
         bob_input = torch.cat([ciphertext_batch, key_batch], dim=1)
         decrypted_bits_batch = bob(bob_input)
 
-        # with torch.no_grad():
-        #     eve_output = eve(ciphertext_batch.detach())
+        with torch.no_grad():
+            eve_output = eve(ciphertext_batch.detach())
 
         #     if eve_use_smooth_l1:
         #         eve_loss = smooth_l1_criterion(eve_output, plain_bits_batch)
@@ -305,7 +305,7 @@ def train(load=False):
 
         with torch.no_grad():
             decrypted_texts = bits_to_text_batch(decrypted_bits_batch)
-            eve_texts = bits_to_text_batch(eve_output_alice)
+            eve_texts = bits_to_text_batch(eve_output)
             for pt, dt in zip(plaintexts, decrypted_texts):
                 total_count += 1
                 if pt == dt:
