@@ -264,6 +264,28 @@ def train(load=False):
         else:
             plaintexts = generate_random_messages(BATCH_SIZE)
         plain_bits_batch = text_to_bits_batch(plaintexts)
+
+
+        if batch_i % EVE_TRAIN_SKIP == 0:
+            eve.train()
+            alice.eval()
+            bob.eval()
+
+            with torch.no_grad():
+                alice_input_eve = torch.cat([plain_bits_batch, key_batch], dim=1)
+                ciphertext_batch_eve = alice(alice_input_eve)
+            
+            eve_output = eve(ciphertext_batch_eve)
+            if eve_use_smooth_l1:
+                eve_loss = smooth_l1_criterion(eve_output, plain_bits_batch)
+            else:
+                eve_loss = mse_criterion(eve_output, plain_bits_batch)
+            eve_errors.append(eve_loss.item())
+            eve_optimizer.zero_grad()
+            eve_loss.backward()
+            torch.nn.utils.clip_grad_norm_(eve.parameters(), 0.5)
+            eve_optimizer.step()
+            eve_scheduler.step()
         
         alice.train()
         bob.train()
@@ -326,27 +348,6 @@ def train(load=False):
 
         alice_and_bob_optimizer.step()
         alice_and_bob_scheduler.step()
-
-        if batch_i % EVE_TRAIN_SKIP == 0:
-            eve.train()
-            alice.eval()
-            bob.eval()
-
-            with torch.no_grad():
-                alice_input_eve = torch.cat([plain_bits_batch, key_batch], dim=1)
-                ciphertext_batch_eve = alice(alice_input_eve)
-            
-            eve_output = eve(ciphertext_batch_eve)
-            if eve_use_smooth_l1:
-                eve_loss = smooth_l1_criterion(eve_output, plain_bits_batch)
-            else:
-                eve_loss = mse_criterion(eve_output, plain_bits_batch)
-            eve_errors.append(eve_loss.item())
-            eve_optimizer.zero_grad()
-            eve_loss.backward()
-            torch.nn.utils.clip_grad_norm_(eve.parameters(), 0.5)
-            eve_optimizer.step()
-            eve_scheduler.step()
         
         if (batch_i + 1) % (2500 // BATCH_SIZE) == 0:
             avg_error = np.mean(bob_errors[-100:]) if len(bob_errors) >= 100 else np.mean(bob_errors)
