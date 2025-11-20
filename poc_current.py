@@ -305,7 +305,7 @@ def train(load=False):
 
         with torch.no_grad():
             decrypted_texts = bits_to_text_batch(decrypted_bits_batch)
-            eve_texts = bits_to_text_batch(eve_output)
+            eve_texts = bits_to_text_batch(eve_output_alice)
             for pt, dt in zip(plaintexts, decrypted_texts):
                 total_count += 1
                 if pt == dt:
