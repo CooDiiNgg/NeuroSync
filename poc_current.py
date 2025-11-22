@@ -110,7 +110,7 @@ class ResidualBlock(nn.Module):
         residual = x
         out = torch.tanh(self.bn(self.fc(x)))
         out = self.dropout(out)
-        out += residual
+        out = out + residual
         return out
 
 class ImprovedNetwork(nn.Module):
@@ -288,7 +288,7 @@ def train(load=False):
         #     eve_errors.append(eve_loss.item())
 
 
-        eve_output_alice = eve(ciphertext_batch.detach())
+        eve_output_alice = eve(ciphertext_batch)
 
         if eve_use_smooth_l1:
             eve_loss_alice = smooth_l1_criterion(eve_output_alice, plain_bits_batch)
