@@ -276,6 +276,8 @@ def train(load=False):
             plaintexts = generate_random_messages(BATCH_SIZE)
         plain_bits_batch = text_to_bits_batch(plaintexts)
         
+        ADVERSARIAL_WEIGHT = 0.5
+
         alice.train()
         bob.train()
 
