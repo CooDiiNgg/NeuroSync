@@ -318,7 +318,9 @@ def train(load=False):
 
         total_loss = loss - ADVERSARIAL_WEIGHT * eve_loss_alice
         if repeating_ciphertext >= 10:
-            total_loss += 10.0
+            total_loss += 100.0
+            with torch.no_grad():
+                alice.temperature.data = torch.tensor(1.0, device=device)
             repeating_ciphertext = 0
 
         alice_and_bob_optimizer.zero_grad()
