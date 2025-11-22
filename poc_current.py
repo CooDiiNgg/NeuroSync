@@ -243,7 +243,10 @@ def train(load=False):
     eve_guess_count = 0
 
     EVE_TRAIN_SKIP = 2
-    ADVERSARIAL_WEIGHT = 1.0
+    ADVERSARIAL_WEIGHT = 0.0
+
+    prev_ciphertext = None
+    repeating_ciphertext = 0
 
     if load and os.path.exists('training_state_test.pth'):
         print("Loading training state...")
@@ -262,7 +265,10 @@ def train(load=False):
         if batch_i < 1000:
             plaintexts = generate_random_messages(BATCH_SIZE//2)
             plaintexts += plaintexts
+            ADVERSARIAL_WEIGHT = 0.0
         else:
+            if batch_i < 5000:
+                ADVERSARIAL_WEIGHT = 0.5
             plaintexts = generate_random_messages(BATCH_SIZE)
         plain_bits_batch = text_to_bits_batch(plaintexts)
         
@@ -273,6 +279,13 @@ def train(load=False):
 
         alice_input = torch.cat([plain_bits_batch, key_batch], dim=1)
         ciphertext_batch = alice(alice_input)
+
+        if prev_ciphertext is not None:
+            if torch.allclose(ciphertext_batch, prev_ciphertext, atol=1e-4):
+                repeating_ciphertext += 1
+            else:
+                repeating_ciphertext = 0
+                
 
         bob_input = torch.cat([ciphertext_batch, key_batch], dim=1)
         decrypted_bits_batch = bob(bob_input)
@@ -304,6 +317,9 @@ def train(load=False):
 
 
         total_loss = loss - ADVERSARIAL_WEIGHT * eve_loss_alice
+        if repeating_ciphertext >= 10:
+            total_loss += 10.0
+            repeating_ciphertext = 0
 
         alice_and_bob_optimizer.zero_grad()
 
