@@ -304,17 +304,6 @@ def train(load=False):
         bob_errors.append(loss.item())
 
 
-        with torch.no_grad():
-            decrypted_texts = bits_to_text_batch(decrypted_bits_batch.detach())
-            eve_texts = bits_to_text_batch(eve_output_alice.detach())
-            for pt, dt in zip(plaintexts, decrypted_texts):
-                total_count += 1
-                if pt == dt:
-                    perfect_count += 1
-            for pt, et in zip(plaintexts, eve_texts):
-                if pt == et:
-                    eve_guess_count += 1
-
         total_loss = loss - ADVERSARIAL_WEIGHT * eve_loss_alice
 
         alice_and_bob_optimizer.zero_grad()
@@ -327,6 +316,17 @@ def train(load=False):
 
         alice_and_bob_optimizer.step()
         alice_and_bob_scheduler.step()
+
+        with torch.no_grad():
+            decrypted_texts = bits_to_text_batch(decrypted_bits_batch.detach())
+            eve_texts = bits_to_text_batch(eve_output_alice.detach())
+            for pt, dt in zip(plaintexts, decrypted_texts):
+                total_count += 1
+                if pt == dt:
+                    perfect_count += 1
+            for pt, et in zip(plaintexts, eve_texts):
+                if pt == et:
+                    eve_guess_count += 1
 
         if batch_i % EVE_TRAIN_SKIP == 0:
             eve.train()
