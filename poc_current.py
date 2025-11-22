@@ -288,8 +288,9 @@ def train(load=False):
         #     eve_errors.append(eve_loss.item())
 
 
-
-        eve_output_alice = eve(ciphertext_batch)
+        alice_eve_batch = torch.cat([plain_bits_batch, key_batch], dim=1)
+        ciphertext_eve_batch = alice(alice_eve_batch)
+        eve_output_alice = eve(ciphertext_eve_batch)
 
         if eve_use_smooth_l1:
             eve_loss_alice = smooth_l1_criterion(eve_output_alice, plain_bits_batch)
