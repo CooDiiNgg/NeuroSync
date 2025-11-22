@@ -273,8 +273,7 @@ def train(load=False):
             plaintexts += plaintexts
             ADVERSARIAL_WEIGHT = 0.0
         else:
-            if batch_i < 5000:
-                ADVERSARIAL_WEIGHT = 0.5
+            ADVERSARIAL_WEIGHT = 0.2
             plaintexts = generate_random_messages(BATCH_SIZE)
         plain_bits_batch = text_to_bits_batch(plaintexts)
         
@@ -288,12 +287,11 @@ def train(load=False):
         ciphertext_batch = alice(alice_input)
 
         if prev_ciphertext is not None:
-            if torch.allclose(ciphertext_batch, prev_ciphertext, atol=1e-4):
+            if torch.allclose(ciphertext_batch[-1], prev_ciphertext, atol=1e-4):
                 repeating_ciphertext += 1
             else:
                 repeating_ciphertext = 0
-        prev_ciphertext = ciphertext_batch.detach()
-                
+        prev_ciphertext = ciphertext_batch[-1].detach().clone()
 
         bob_input = torch.cat([ciphertext_batch, key_batch], dim=1)
         decrypted_bits_batch = bob(bob_input)
