@@ -271,12 +271,12 @@ def train(load=False):
         if batch_i < 1000:
             plaintexts = generate_random_messages(BATCH_SIZE//2)
             plaintexts += plaintexts
-            ADVERSARIAL_WEIGHT = 0.5
+            ADVERSARIAL_WEIGHT = 0.0
         else:
+            ADVERSARIAL_WEIGHT = 0.3
             plaintexts = generate_random_messages(BATCH_SIZE)
         plain_bits_batch = text_to_bits_batch(plaintexts)
         
-        ADVERSARIAL_WEIGHT = 0.5
 
         alice.train()
         bob.train()
