@@ -287,7 +287,11 @@ def train(load=False):
         ciphertext_batch = alice(alice_input)
 
         if prev_ciphertext is not None:
-            if torch.allclose(ciphertext_batch[-1], prev_ciphertext, atol=1e-4):
+            if ciphertext_batch[-1].detach().equal(prev_ciphertext):
+                print("WARNING WARNING WARNING")
+                print()
+                print()
+                print()
                 repeating_ciphertext += 1
             else:
                 repeating_ciphertext = 0
@@ -325,6 +329,7 @@ def train(load=False):
         total_loss = loss - ADVERSARIAL_WEIGHT * eve_loss_alice
         
         if repeating_ciphertext >= 10:
+            print(f"Detected {repeating_ciphertext} repeating ciphertexts, applying penalty and resetting Alice's temperature.")
             total_loss += 50.0
             with torch.no_grad():
                 alice.temperature.data = torch.tensor(1.0, device=device)
