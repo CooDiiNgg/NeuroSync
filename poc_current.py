@@ -289,7 +289,7 @@ def train(load=False):
 
         print(prev_ciphertext)
         print(ciphertext_batch[-1].detach())
-        print(ciphertext_batch[-1].detach().equal(prev_ciphertext))
+        print(ciphertext_batch[-1].detach().equal(prev_ciphertext) if prev_ciphertext is not None else None)
         if prev_ciphertext is not None:
             if ciphertext_batch[-1].detach().equal(prev_ciphertext):
                 print("WARNING WARNING WARNING")
