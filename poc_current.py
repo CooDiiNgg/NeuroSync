@@ -273,7 +273,7 @@ def train(load=False):
             plaintexts += plaintexts
             ADVERSARIAL_WEIGHT = 0.0
         else:
-            ADVERSARIAL_WEIGHT = 0.2
+            ADVERSARIAL_WEIGHT = 0.0
             plaintexts = generate_random_messages(BATCH_SIZE)
         plain_bits_batch = text_to_bits_batch(plaintexts)
         
