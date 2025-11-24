@@ -271,9 +271,10 @@ def train(load=False):
         if batch_i < 1000:
             plaintexts = generate_random_messages(BATCH_SIZE//2)
             plaintexts += plaintexts
-            ADVERSARIAL_WEIGHT = 0.5
+            ADVERSARIAL_WEIGHT = 0.0
         else:
-            ADVERSARIAL_WEIGHT = 0.5
+            if batch_i < 5000:
+                ADVERSARIAL_WEIGHT = 0.2
             plaintexts = generate_random_messages(BATCH_SIZE)
         plain_bits_batch = text_to_bits_batch(plaintexts)
         
@@ -287,11 +288,9 @@ def train(load=False):
         ciphertext_batch = alice(alice_input)
 
 
-        print(prev_ciphertext)
-        print(ciphertext_batch[-1].detach())
-        print(ciphertext_batch[-1].detach().equal(prev_ciphertext) if prev_ciphertext is not None else None)
         if prev_ciphertext is not None:
-            if ciphertext_batch[-1].detach().equal(prev_ciphertext):
+            if bits_to_text(ciphertext_batch[-1]) == bits_to_text(prev_ciphertext):
+                print()
                 print("WARNING WARNING WARNING")
                 print()
                 print()
