@@ -288,12 +288,17 @@ def train(load=False):
         ciphertext_batch = alice(alice_input)
 
 
-        if prev_ciphertext is not None:
-            if bits_to_text(ciphertext_batch[-1]) == bits_to_text(prev_ciphertext):
-                repeating_ciphertext += 1
-            else:
-                repeating_ciphertext = 0
-        prev_ciphertext = ciphertext_batch[-1].detach().clone()
+        # if prev_ciphertext is not None:
+        #     if bits_to_text(ciphertext_batch[-1]) == bits_to_text(prev_ciphertext):
+        #         repeating_ciphertext += 1
+        #     else:
+        #         repeating_ciphertext = 0
+        # prev_ciphertext = ciphertext_batch[-1].detach().clone()
+
+        # try to normalize the ciphertextx:
+        ciphertext_strings = bits_to_text_batch(ciphertext_batch)
+        print("Ciphertext samples:", ciphertext_strings[:2])
+        ciphertext_batch = text_to_bits_batch(ciphertext_strings)
 
         bob_input = torch.cat([ciphertext_batch, key_batch], dim=1)
         decrypted_bits_batch = bob(bob_input)
@@ -326,12 +331,12 @@ def train(load=False):
 
         total_loss = loss - ADVERSARIAL_WEIGHT * eve_loss_alice
         
-        if repeating_ciphertext >= 10:
-            print(f"Detected {repeating_ciphertext} repeating ciphertexts, applying penalty and resetting Alice's temperature.")
-            total_loss += 200.0
-            with torch.no_grad():
-                alice.temperature.data = torch.tensor(1.0, device=device)
-            repeating_ciphertext = 0
+        # if repeating_ciphertext >= 10:
+        #     print(f"Detected {repeating_ciphertext} repeating ciphertexts, applying penalty and resetting Alice's temperature.")
+        #     total_loss += 200.0
+        #     with torch.no_grad():
+        #         alice.temperature.data = torch.tensor(1.0, device=device)
+        #     repeating_ciphertext = 0
 
         alice_optimizer.zero_grad()
         bob_optimizer.zero_grad()
@@ -367,6 +372,8 @@ def train(load=False):
                 alice_input_eve = torch.cat([plain_bits_batch, key_batch], dim=1)
                 ciphertext_batch_eve = alice(alice_input_eve)
             
+            ciphertext_strings_eve = bits_to_text_batch(ciphertext_batch_eve)
+            ciphertext_batch_eve = text_to_bits_batch(ciphertext_strings_eve)
             eve_output = eve(ciphertext_batch_eve)
             if eve_use_smooth_l1:
                 eve_loss = smooth_l1_criterion(eve_output, plain_bits_batch)
@@ -385,6 +392,7 @@ def train(load=False):
             episode = (batch_i + 1) * BATCH_SIZE
 
             eve_accuracy = (100 * eve_guess_count / total_count )if total_count > 0 else 0.0
+            eve_guess_count = 0
             # TODO: need to fix this static switch logic a bit later
             if eve_accuracy > 80.0:
                 ADVERSARIAL_WEIGHT = min(2.0, ADVERSARIAL_WEIGHT * 1.2)
@@ -411,7 +419,8 @@ def train(load=False):
             print(f"  Last example:")
             print(f"    Original:  '{plaintexts[-1]}'")
             print(f"    Decrypted: '{decrypted_texts[-1]}'")
-            ciphertext_readable = bits_to_text(ciphertext_batch[-1])
+            ciphertext_readable = ciphertext_batch[-1].detach().cpu().numpy()
+            ciphertext_readable = bits_to_text(ciphertext_readable)
             print(f"    Encrypted: '{ciphertext_readable}'")
             print(f"    Eve Dec.:  '{eve_texts[-1]}'")
             print(f"    Eve Accuracy: {eve_accuracy:.1f}%")
@@ -487,6 +496,8 @@ def train(load=False):
 
             ai = torch.cat([test_bits, key_batch], dim=1)
             ciph = alice(ai)
+            ciphertext_strings = bits_to_text_batch(ciph)
+            ciph = text_to_bits_batch(ciphertext_strings)
             bi = torch.cat([ciph, key_batch], dim=1)
             dec_b = bob(bi)
             dec_texts = bits_to_text_batch(dec_b)
@@ -509,6 +520,9 @@ def train(load=False):
                     test_bits_single = torch.tensor(test_bits_single, dtype=torch.float32, device=device)
                     ai = torch.cat([test_bits_single, key])
                     ciph = alice(ai, single=True)
+                    ciphertext_string = bits_to_text(ciph.detach().cpu().numpy())
+                    ciph = text_to_bits(ciphertext_string)
+                    ciph = torch.tensor(ciph, dtype=torch.float32, device=device)
                     bi = torch.cat([ciph, key])
                     dec_b = bob(bi, single=True)
                     dec = bits_to_text(dec_b)
@@ -521,6 +535,8 @@ def train(load=False):
 
             ai = torch.cat([test_bits, key_batch], dim=1)
             ciph = alice(ai)
+            ciphertext_strings = bits_to_text_batch(ciph)
+            ciph = text_to_bits_batch(ciphertext_strings)
             bi = torch.cat([ciph, key_batch], dim=1)
             dec_b = bob(bi)
             dec_texts = bits_to_text_batch(dec_b)
@@ -578,6 +594,9 @@ def test_saved():
             test_bits = torch.tensor(test_bits, dtype=torch.float32, device=device)
             ai = torch.cat([test_bits, key])
             ciph = alice(ai, single=True)
+            ciph_string = bits_to_text(ciph.detach().cpu().numpy())
+            ciph = text_to_bits(ciph_string)
+            ciph = torch.tensor(ciph, dtype=torch.float32, device=device)
             bi = torch.cat([ciph, key])
             dec_b = bob(bi, single=True)
             dec = bits_to_text(dec_b)
