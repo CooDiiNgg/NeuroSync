@@ -274,7 +274,7 @@ def train(load=False):
             ADVERSARIAL_WEIGHT = 0.0
         else:
             if batch_i < 5000:
-                ADVERSARIAL_WEIGHT = 0.2
+                ADVERSARIAL_WEIGHT = 0.0
             plaintexts = generate_random_messages(BATCH_SIZE)
         plain_bits_batch = text_to_bits_batch(plaintexts)
         
@@ -295,9 +295,8 @@ def train(load=False):
         #         repeating_ciphertext = 0
         # prev_ciphertext = ciphertext_batch[-1].detach().clone()
 
-        # try to normalize the ciphertextx:
         ciphertext_strings = bits_to_text_batch(ciphertext_batch)
-        print("Ciphertext samples:", ciphertext_strings[:2])
+        # print("Ciphertext samples:", ciphertext_strings[:2])
         ciphertext_batch = text_to_bits_batch(ciphertext_strings)
 
         bob_input = torch.cat([ciphertext_batch, key_batch], dim=1)
