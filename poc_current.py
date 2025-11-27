@@ -98,6 +98,20 @@ def generate_random_messages(batch_size):
     return messages
 
 
+class StraightThroughSign(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        return torch.sign(input)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output
+
+
+def straight_through_sign(input):
+    return StraightThroughSign.apply(input)
+
+
 class ResidualBlock(nn.Module):
     """Residual block - perhaps this will fix the plateauing issue"""
     def __init__(self, size, dropout=0.05):
@@ -112,6 +126,10 @@ class ResidualBlock(nn.Module):
         out = self.dropout(out)
         out = out + residual
         return out
+
+
+def confidence_loss(input, margin=0.5):
+    return torch.mean(torch.clamp(margin - torch.abs(input), min=0.0))
 
 class ImprovedNetwork(nn.Module):
     """Improved multi-layer network with proper architecture"""
@@ -248,9 +266,10 @@ def train(load=False):
 
     EVE_TRAIN_SKIP = 2
     ADVERSARIAL_WEIGHT = 0.0
+    CONFIDENCE_WEIGHT = 0.1
 
-    prev_ciphertext = None
-    repeating_ciphertext = 0
+    # prev_ciphertext = None
+    # repeating_ciphertext = 0
 
     if load and os.path.exists('training_state_test.pth'):
         print("Loading training state...")
@@ -265,8 +284,7 @@ def train(load=False):
         print("Loaded training state!\n")
 
     num_of_batches = TRAINING_EPISODES // BATCH_SIZE
-    # enable anomaly detection for debugging
-    torch.autograd.set_detect_anomaly(True)
+    # torch.autograd.set_detect_anomaly(True)
     for batch_i in range(0, num_of_batches):
         if batch_i < 1000:
             plaintexts = generate_random_messages(BATCH_SIZE//2)
@@ -285,7 +303,7 @@ def train(load=False):
         eve.eval()
 
         alice_input = torch.cat([plain_bits_batch, key_batch], dim=1)
-        ciphertext_batch = alice(alice_input)
+        ciphertext_batch_original = alice(alice_input)
 
 
         # if prev_ciphertext is not None:
@@ -295,9 +313,7 @@ def train(load=False):
         #         repeating_ciphertext = 0
         # prev_ciphertext = ciphertext_batch[-1].detach().clone()
 
-        ciphertext_strings = bits_to_text_batch(ciphertext_batch)
-        # print("Ciphertext samples:", ciphertext_strings[:2])
-        ciphertext_batch = text_to_bits_batch(ciphertext_strings)
+        ciphertext_batch = straight_through_sign(ciphertext_batch_original)
 
         bob_input = torch.cat([ciphertext_batch, key_batch], dim=1)
         decrypted_bits_batch = bob(bob_input)
@@ -328,7 +344,7 @@ def train(load=False):
         bob_errors.append(loss.item())
 
 
-        total_loss = loss - ADVERSARIAL_WEIGHT * eve_loss_alice
+        total_loss = loss + CONFIDENCE_WEIGHT * confidence_loss(ciphertext_batch_original) - ADVERSARIAL_WEIGHT * eve_loss_alice
         
         # if repeating_ciphertext >= 10:
         #     print(f"Detected {repeating_ciphertext} repeating ciphertexts, applying penalty and resetting Alice's temperature.")
@@ -370,9 +386,8 @@ def train(load=False):
             with torch.no_grad():
                 alice_input_eve = torch.cat([plain_bits_batch, key_batch], dim=1)
                 ciphertext_batch_eve = alice(alice_input_eve)
+                ciphertext_batch_eve = straight_through_sign(ciphertext_batch_eve)
             
-            ciphertext_strings_eve = bits_to_text_batch(ciphertext_batch_eve)
-            ciphertext_batch_eve = text_to_bits_batch(ciphertext_strings_eve)
             eve_output = eve(ciphertext_batch_eve)
             if eve_use_smooth_l1:
                 eve_loss = smooth_l1_criterion(eve_output, plain_bits_batch)
@@ -440,6 +455,7 @@ def train(load=False):
                         pb = torch.tensor(pb, dtype=torch.float32, device=device)
                         ai = torch.cat([pb, key])
                         ciph = alice(ai, single=True)
+                        ciph = torch.sign(ciph)
                         bi = torch.cat([ciph, key])
                         dec_b = bob(bi, single=True)
                         dec = bits_to_text(dec_b)
@@ -495,8 +511,7 @@ def train(load=False):
 
             ai = torch.cat([test_bits, key_batch], dim=1)
             ciph = alice(ai)
-            ciphertext_strings = bits_to_text_batch(ciph)
-            ciph = text_to_bits_batch(ciphertext_strings)
+            ciph = torch.sign(ciph)
             bi = torch.cat([ciph, key_batch], dim=1)
             dec_b = bob(bi)
             dec_texts = bits_to_text_batch(dec_b)
@@ -519,9 +534,7 @@ def train(load=False):
                     test_bits_single = torch.tensor(test_bits_single, dtype=torch.float32, device=device)
                     ai = torch.cat([test_bits_single, key])
                     ciph = alice(ai, single=True)
-                    ciphertext_string = bits_to_text(ciph.detach().cpu().numpy())
-                    ciph = text_to_bits(ciphertext_string)
-                    ciph = torch.tensor(ciph, dtype=torch.float32, device=device)
+                    ciph = torch.sign(ciph)
                     bi = torch.cat([ciph, key])
                     dec_b = bob(bi, single=True)
                     dec = bits_to_text(dec_b)
@@ -534,8 +547,7 @@ def train(load=False):
 
             ai = torch.cat([test_bits, key_batch], dim=1)
             ciph = alice(ai)
-            ciphertext_strings = bits_to_text_batch(ciph)
-            ciph = text_to_bits_batch(ciphertext_strings)
+            ciph = torch.sign(ciph)
             bi = torch.cat([ciph, key_batch], dim=1)
             dec_b = bob(bi)
             dec_texts = bits_to_text_batch(dec_b)
@@ -593,9 +605,7 @@ def test_saved():
             test_bits = torch.tensor(test_bits, dtype=torch.float32, device=device)
             ai = torch.cat([test_bits, key])
             ciph = alice(ai, single=True)
-            ciph_string = bits_to_text(ciph.detach().cpu().numpy())
-            ciph = text_to_bits(ciph_string)
-            ciph = torch.tensor(ciph, dtype=torch.float32, device=device)
+            ciph = torch.sign(ciph)
             bi = torch.cat([ciph, key])
             dec_b = bob(bi, single=True)
             dec = bits_to_text(dec_b)
