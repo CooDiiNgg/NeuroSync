@@ -266,7 +266,7 @@ def train(load=False):
 
     EVE_TRAIN_SKIP = 2
     ADVERSARIAL_WEIGHT = 0.0
-    CONFIDENCE_WEIGHT = 0.05
+    CONFIDENCE_WEIGHT = 0.00
 
     # prev_ciphertext = None
     # repeating_ciphertext = 0
