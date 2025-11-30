@@ -172,7 +172,7 @@ class ImprovedNetwork(nn.Module):
                 for block in self.residual_blocks:
                     x = block(x)
                 x = torch.tanh(self.pre_out_bn(self.pre_out(x)))
-                x = torch.tanh(self.out(x)/self.temperature) * self.temperature
+                x = torch.tanh(self.out(x)/self.temperature)
                 x = x.squeeze(0)
             self.train()
         else:
@@ -180,7 +180,7 @@ class ImprovedNetwork(nn.Module):
             for block in self.residual_blocks:
                 x = block(x)
             x = torch.tanh(self.pre_out_bn(self.pre_out(x)))
-            x = torch.tanh(self.out(x)/self.temperature) * self.temperature
+            x = torch.tanh(self.out(x)/self.temperature)
         return x
     
     def save(self, filename):
@@ -327,7 +327,7 @@ def train(load=False):
         if np.random.rand() < discretization_prob:
             ciphertext_batch = straight_through_sign(ciphertext_batch_original)
         else:
-            ciphertext_batch = ciphertext_batch_original
+            ciphertext_batch = torch.sign(ciphertext_batch_original).detach()
 
         bob_input = torch.cat([ciphertext_batch, key_batch], dim=1)
         decrypted_bits_batch = bob(bob_input)
