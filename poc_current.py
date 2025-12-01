@@ -128,8 +128,8 @@ class ResidualBlock(nn.Module):
         return out
 
 
-def confidence_loss(input, margin=0.5):
-    return torch.mean(torch.clamp(margin - torch.abs(input), min=0.0))
+def confidence_loss(input, margin=0.9):
+    return torch.mean(torch.clamp(margin - torch.abs(input), min=0.0) ** 2)
 
 class ImprovedNetwork(nn.Module):
     """Improved multi-layer network with proper architecture"""
@@ -266,7 +266,7 @@ def train(load=False):
 
     EVE_TRAIN_SKIP = 2
     ADVERSARIAL_WEIGHT = 0.0
-    CONFIDENCE_WEIGHT = 0.1
+    CONFIDENCE_WEIGHT = 0.5
 
     PHASE_1_EPISODES = 5000
     PHASE_2_EPISODES = 9000
@@ -357,7 +357,7 @@ def train(load=False):
             loss = mse_criterion(decrypted_bits_batch, plain_bits_batch)
         bob_errors.append(loss.item())
 
-        if discretization_prob >= 0.5:
+        if discretization_prob > 0:
             total_loss = loss + CONFIDENCE_WEIGHT * confidence_loss(ciphertext_batch_original) - ADVERSARIAL_WEIGHT * eve_loss_alice
         else:
             total_loss = loss - ADVERSARIAL_WEIGHT * eve_loss_alice
