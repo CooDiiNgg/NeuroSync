@@ -128,7 +128,7 @@ class ResidualBlock(nn.Module):
         return out
 
 
-def confidence_loss(input, margin=0.9):
+def confidence_loss(input, margin=0.7):
     return torch.mean(torch.clamp(margin - torch.abs(input), min=0.0) ** 2)
 
 class ImprovedNetwork(nn.Module):
@@ -266,11 +266,12 @@ def train(load=False):
 
     EVE_TRAIN_SKIP = 2
     ADVERSARIAL_WEIGHT = 0.0
-    CONFIDENCE_WEIGHT = 0.5
+    CONFIDENCE_MAX = 0.3
+    CONFIDENCE_WEIGHT = 0.0
 
-    PHASE_1_EPISODES = 5000
-    PHASE_2_EPISODES = 9000
-    discretization_prob = 0.0
+    # PHASE_1_EPISODES = 5000
+    # PHASE_2_EPISODES = 9000
+    # discretization_prob = 0.0
 
     # prev_ciphertext = None
     # repeating_ciphertext = 0
@@ -300,12 +301,12 @@ def train(load=False):
             plaintexts = generate_random_messages(BATCH_SIZE)
         plain_bits_batch = text_to_bits_batch(plaintexts)
 
-        if batch_i < PHASE_1_EPISODES:
-            discretization_prob = 0.0
-        elif batch_i < PHASE_2_EPISODES:
-            discretization_prob = (batch_i - PHASE_1_EPISODES) / (PHASE_2_EPISODES - PHASE_1_EPISODES)
-        else:
-            discretization_prob = 1.0
+        # if batch_i < PHASE_1_EPISODES:
+        #     discretization_prob = 0.0
+        # elif batch_i < PHASE_2_EPISODES:
+        #     discretization_prob = (batch_i - PHASE_1_EPISODES) / (PHASE_2_EPISODES - PHASE_1_EPISODES)
+        # else:
+        #     discretization_prob = 1.0
         
 
         alice.train()
@@ -324,10 +325,12 @@ def train(load=False):
         #         repeating_ciphertext = 0
         # prev_ciphertext = ciphertext_batch[-1].detach().clone()
 
-        if np.random.rand() < discretization_prob:
-            ciphertext_batch = straight_through_sign(ciphertext_batch_original)
-        else:
-            ciphertext_batch = torch.sign(ciphertext_batch_original).detach()
+        # if np.random.rand() < discretization_prob:
+        #     ciphertext_batch = straight_through_sign(ciphertext_batch_original)
+        # else:
+        #     ciphertext_batch = torch.sign(ciphertext_batch_original).detach()
+
+        ciphertext_batch = straight_through_sign(ciphertext_batch_original)
 
         bob_input = torch.cat([ciphertext_batch, key_batch], dim=1)
         decrypted_bits_batch = bob(bob_input)
@@ -357,10 +360,12 @@ def train(load=False):
             loss = mse_criterion(decrypted_bits_batch, plain_bits_batch)
         bob_errors.append(loss.item())
 
-        if discretization_prob > 0:
-            total_loss = loss + CONFIDENCE_WEIGHT * confidence_loss(ciphertext_batch_original) - ADVERSARIAL_WEIGHT * eve_loss_alice
-        else:
-            total_loss = loss - ADVERSARIAL_WEIGHT * eve_loss_alice
+        # if discretization_prob > 0:
+        #     total_loss = loss + CONFIDENCE_WEIGHT * confidence_loss(ciphertext_batch_original) - ADVERSARIAL_WEIGHT * eve_loss_alice
+        # else:
+        #     total_loss = loss - ADVERSARIAL_WEIGHT * eve_loss_alice
+
+        total_loss = loss + CONFIDENCE_WEIGHT * confidence_loss(ciphertext_batch_original) - ADVERSARIAL_WEIGHT * eve_loss_alice
         # if repeating_ciphertext >= 10:
         #     print(f"Detected {repeating_ciphertext} repeating ciphertexts, applying penalty and resetting Alice's temperature.")
         #     total_loss += 200.0
@@ -440,6 +445,14 @@ def train(load=False):
                 plateau_count += 1
                 if plateau_count >= 10 and recent_accuracy < 90.0:
                     use_smooth_l1 = True
+            
+
+            if recent_accuracy < 60:
+                CONFIDENCE_WEIGHT = 0.0
+            elif recent_accuracy < 90:
+                CONFIDENCE_WEIGHT = ((recent_accuracy - 60.0)/30.0) * CONFIDENCE_MAX
+            else:
+                CONFIDENCE_WEIGHT = CONFIDENCE_MAX
 
             print(f"\nEpisode {episode}/{TRAINING_EPISODES}")
             print(f"  Avg Bob Error: {avg_error:.6f}")
