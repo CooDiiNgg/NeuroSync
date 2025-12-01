@@ -406,8 +406,7 @@ def train(load=False):
             with torch.no_grad():
                 alice_input_eve = torch.cat([plain_bits_batch, key_batch], dim=1)
                 ciphertext_batch_eve = alice(alice_input_eve) 
-                if np.random.rand() < discretization_prob:
-                    ciphertext_batch_eve = straight_through_sign(ciphertext_batch_eve)
+                ciphertext_batch_eve = straight_through_sign(ciphertext_batch_eve)
             
             eve_output = eve(ciphertext_batch_eve)
             if eve_use_smooth_l1:
