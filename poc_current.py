@@ -128,7 +128,7 @@ class ResidualBlock(nn.Module):
         return out
 
 
-def confidence_loss(input, margin=0.7):
+def confidence_loss(input, margin=0.9):
     return torch.mean(torch.clamp(margin - torch.abs(input), min=0.0) ** 2)
 
 class ImprovedNetwork(nn.Module):
