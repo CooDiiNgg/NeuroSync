@@ -149,7 +149,7 @@ class ImprovedNetwork(nn.Module):
 
         self.out = nn.Linear(hidden_size, output_size)
         
-        self.temperature = nn.Parameter(torch.tensor(1.0))
+        self.temperature = nn.Parameter(torch.tensor(0.0))
         
         self._initialize_weights()
         
@@ -162,9 +162,14 @@ class ImprovedNetwork(nn.Module):
             elif isinstance(m, nn.BatchNorm1d):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
+
+    @property
+    def temp(self):
+        return torch.nn.functional.softplus(self.temperature) + 0.5
     
     def forward(self, x, single=False):
         """Forward pass with multiple layers and now BatchNorm"""
+        temper = self.temp
         if single:
             self.eval()
             with torch.no_grad():
@@ -172,7 +177,7 @@ class ImprovedNetwork(nn.Module):
                 for block in self.residual_blocks:
                     x = block(x)
                 x = torch.tanh(self.pre_out_bn(self.pre_out(x)))
-                x = torch.tanh(self.out(x)/self.temperature)
+                x = torch.tanh(self.out(x)/temper)
                 x = x.squeeze(0)
             self.train()
         else:
@@ -180,7 +185,7 @@ class ImprovedNetwork(nn.Module):
             for block in self.residual_blocks:
                 x = block(x)
             x = torch.tanh(self.pre_out_bn(self.pre_out(x)))
-            x = torch.tanh(self.out(x)/self.temperature)
+            x = torch.tanh(self.out(x)/temper)
         return x
     
     def save(self, filename):
