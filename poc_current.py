@@ -5,6 +5,7 @@ import torch.optim as optim
 import string
 import os
 import numpy as np
+import base64
 
 
 MESSAGE_LENGTH = 16
@@ -13,7 +14,7 @@ TRAINING_EPISODES = 20000000
 BATCH_SIZE = 64
 
 with open("./words.txt", "r") as f:
-       word_list = [line.strip() + " " * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
+       word_list = [line.strip() + "=" * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -68,7 +69,7 @@ def bits_to_text(bits):
         val = min(52, val)
 
         if val == 52:
-            chars.append(' ')
+            chars.append('=')
         elif val <= 25:
             chars.append(chr(val + ord('a')))
         elif val <= 51:
@@ -579,7 +580,7 @@ def train(load=False):
                     correct += 1
         # now some real wods to test:
         with open("./real_words.txt", "r") as f:
-            real_words = [line.strip() + " " * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
+            real_words = [line.strip() + "=" * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
         for i in range(0, len(real_words), BATCH_SIZE):
             batch_words = real_words[i:i+BATCH_SIZE]
             if len(batch_words) < BATCH_SIZE:
@@ -629,7 +630,6 @@ def test_saved():
     key_np = np.load('key.npy')
     key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
     key = torch.tensor(key_np, dtype=torch.float32, device=device)
-    key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
 
     # #temporary
     # key_np_2 = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
@@ -650,32 +650,41 @@ def test_saved():
     print("TESTING")
     print("=" * 70)
     
-    
-    with open("./real_words.txt", "r") as f:
-        test_words = [line.strip() + " " * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
-    test_words += [word_list[np.random.randint(0, len(word_list))] for _ in range(50)]
-    test_words = ["abcdabcdABCDABCD"]
-    criterion = nn.MSELoss()
-    correct = 0
-    
+    input_text = input("Enter message to encrypt: ").strip()
+    input_text = base64.b64encode(input_text.encode()).decode()
+    print(f"Base64 Encoded Input: '{input_text}'")
+    batch = []
+    while len(input_text) > 0:
+        chunk = input_text[:MESSAGE_LENGTH]
+        input_text = input_text[MESSAGE_LENGTH:]
+        chunk = chunk.ljust(MESSAGE_LENGTH, '=')
+        batch.append(chunk)
+    print(f"Processing {len(batch)} chunks of {MESSAGE_LENGTH} characters each.\n")
+    input_bits = text_to_bits_batch(batch)
+    key_batch = key.unsqueeze(0).repeat(len(batch), 1)
     with torch.no_grad():
-        for w in test_words:
-            test_bits = text_to_bits(w)
-            test_bits = torch.tensor(test_bits, dtype=torch.float32, device=device)
-            ai = xor(test_bits, key)
-            ciph = alice(ai, single=True)
-            ciph = torch.sign(ciph)
-            bi = xor(ciph, key)
-            dec_b = bob(bi, single=True)
-            dec = bits_to_text(dec_b)
-            error = criterion(dec_b, test_bits).item()
-            match = "YES:" if w == dec else "NO:"
-            print(f"{match} '{w}' → '{dec}' | Error: {error:.6f}")
-            if w == dec:
-                correct += 1
-    
-    print(f"\n{'=' * 70}")
-    print(f"Score: {correct}/{len(test_words)} ({100*correct/len(test_words):.0f}%)")
+        ai = xor(input_bits, key_batch)
+        ciph = alice(ai)
+        ciph = torch.sign(ciph)
+        print("Encrypted ciphertexts:")
+        ciph_texts = bits_to_text_batch(ciph)
+        for original, ciph_text in zip(batch, ciph_texts):
+            print(f"  '{original}' → '{ciph_text}'")
+        print()
+        bi = xor(ciph, key_batch)
+        dec_b = bob(bi)
+        dec_texts = bits_to_text_batch(dec_b)
+        print("Decrypted texts:")
+        for original, decrypted in zip(batch, dec_texts):
+            print(f"  '{original}' → '{decrypted}'")
+        print()
+        decoded_b64 = ''.join(dec_texts).rstrip('=')
+        try:
+            decoded_bytes = base64.b64decode(decoded_b64)
+            final_output = decoded_bytes.decode()
+            print(f"Final Decoded Output: '{final_output}'")
+        except Exception as e:
+            print("Failed to decode base64 output. Possibly corrupted data.")
 
 
 if __name__ == "__main__":
