@@ -623,6 +623,8 @@ def test_saved():
     
     print("Loading networks...")
     key_np = np.load('key.npy')
+    #temporary
+    key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
     key = torch.tensor(key_np, dtype=torch.float32, device=device)
     key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
     
