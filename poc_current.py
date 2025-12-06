@@ -645,7 +645,7 @@ def test_saved():
     with open("./real_words.txt", "r") as f:
         test_words = [line.strip() + " " * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
     test_words += [word_list[np.random.randint(0, len(word_list))] for _ in range(50)]
-    
+    test_words = ["abcdabcdABCDABCD"]
     criterion = nn.MSELoss()
     correct = 0
     
