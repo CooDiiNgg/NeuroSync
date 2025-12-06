@@ -627,7 +627,7 @@ def test_saved():
     key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
     
     BIT_LENGTH = MESSAGE_LENGTH * 6
-    HIDDEN_SIZE = 768
+    HIDDEN_SIZE = 512
     alice = ImprovedNetwork(BIT_LENGTH + len(key), HIDDEN_SIZE, BIT_LENGTH, "Alice").to(device)
     bob = ImprovedNetwork(BIT_LENGTH + len(key), HIDDEN_SIZE, BIT_LENGTH, "Bob").to(device)
     alice.load('alice_test.pth')
