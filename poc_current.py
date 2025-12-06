@@ -627,12 +627,13 @@ def test_saved():
     
     print("Loading networks...")
     key_np = np.load('key.npy')
+    key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
     key = torch.tensor(key_np, dtype=torch.float32, device=device)
     key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
 
-    #temporary
-    key_np_2 = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
-    key_2 = torch.tensor(key_np_2, dtype=torch.float32, device=device)
+    # #temporary
+    # key_np_2 = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
+    # key_2 = torch.tensor(key_np_2, dtype=torch.float32, device=device)
     
     BIT_LENGTH = MESSAGE_LENGTH * 6
     HIDDEN_SIZE = 512
@@ -664,7 +665,7 @@ def test_saved():
             ai = xor(test_bits, key)
             ciph = alice(ai, single=True)
             ciph = torch.sign(ciph)
-            bi = xor(ciph, key_2)
+            bi = xor(ciph, key)
             dec_b = bob(bi, single=True)
             dec = bits_to_text(dec_b)
             error = criterion(dec_b, test_bits).item()
