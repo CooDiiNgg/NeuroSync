@@ -131,6 +131,10 @@ class ResidualBlock(nn.Module):
 def confidence_loss(input, margin=0.7):
     return torch.mean(torch.clamp(margin - torch.abs(input), min=0.0))
 
+
+def xor(data, key):
+    return data * key
+
 class ImprovedNetwork(nn.Module):
     """Improved multi-layer network with proper architecture"""
     def __init__(self, input_size, hidden_size, output_size, name="net"):
@@ -222,8 +226,8 @@ def train(load=False):
     
     key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
 
-    alice = ImprovedNetwork(BIT_LENGTH + len(key), HIDDEN_SIZE, BIT_LENGTH, "Alice").to(device)
-    bob = ImprovedNetwork(BIT_LENGTH + len(key), HIDDEN_SIZE, BIT_LENGTH, "Bob").to(device)
+    alice = ImprovedNetwork(BIT_LENGTH, HIDDEN_SIZE, BIT_LENGTH, "Alice").to(device)
+    bob = ImprovedNetwork(BIT_LENGTH, HIDDEN_SIZE, BIT_LENGTH, "Bob").to(device)
     eve = ImprovedNetwork(BIT_LENGTH, HIDDEN_SIZE, BIT_LENGTH, "Eve").to(device)
 
     if load and os.path.exists('alice_test.pth') and os.path.exists('bob_test.pth'):
@@ -326,7 +330,7 @@ def train(load=False):
         key = torch.tensor(key_np, dtype=torch.float32, device=device)
         key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
 
-        alice_input = torch.cat([plain_bits_batch, key_batch], dim=1)
+        alice_input = xor(plain_bits_batch, key_batch)
         ciphertext_batch_original = alice(alice_input)
 
 
@@ -344,7 +348,7 @@ def train(load=False):
 
         ciphertext_batch = straight_through_sign(ciphertext_batch_original)
 
-        bob_input = torch.cat([ciphertext_batch, key_batch], dim=1)
+        bob_input = xor(ciphertext_batch, key_batch)
         decrypted_bits_batch = bob(bob_input)
 
         # with torch.no_grad():
@@ -424,7 +428,7 @@ def train(load=False):
             bob.eval()
 
             with torch.no_grad():
-                alice_input_eve = torch.cat([plain_bits_batch, key_batch], dim=1)
+                alice_input_eve = xor(plain_bits_batch, key_batch)
                 ciphertext_batch_eve = alice(alice_input_eve) 
                 ciphertext_batch_eve = straight_through_sign(ciphertext_batch_eve)
             
@@ -503,10 +507,10 @@ def train(load=False):
                     for word in test_words:
                         pb = text_to_bits(word)
                         pb = torch.tensor(pb, dtype=torch.float32, device=device)
-                        ai = torch.cat([pb, key])
+                        ai = xor(pb, key)
                         ciph = alice(ai, single=True)
                         ciph = torch.sign(ciph)
-                        bi = torch.cat([ciph, key])
+                        bi = xor(ciph, key)
                         dec_b = bob(bi, single=True)
                         dec = bits_to_text(dec_b)
                         match = "YES:" if dec == word else "NO:"
@@ -559,10 +563,10 @@ def train(load=False):
             test_batch = generate_random_messages(BATCH_SIZE)
             test_bits = text_to_bits_batch(test_batch)
 
-            ai = torch.cat([test_bits, key_batch], dim=1)
+            ai = xor(test_bits, key_batch)
             ciph = alice(ai)
             ciph = torch.sign(ciph)
-            bi = torch.cat([ciph, key_batch], dim=1)
+            bi = xor(ciph, key_batch)
             dec_b = bob(bi)
             dec_texts = bits_to_text_batch(dec_b)
             
@@ -582,10 +586,10 @@ def train(load=False):
                 for w in batch_words:
                     test_bits_single = text_to_bits(w)
                     test_bits_single = torch.tensor(test_bits_single, dtype=torch.float32, device=device)
-                    ai = torch.cat([test_bits_single, key])
+                    ai = xor(test_bits_single, key)
                     ciph = alice(ai, single=True)
                     ciph = torch.sign(ciph)
-                    bi = torch.cat([ciph, key])
+                    bi = xor(ciph, key)
                     dec_b = bob(bi, single=True)
                     dec = bits_to_text(dec_b)
                     match = "YES:" if w == dec else "NO:"
@@ -595,10 +599,10 @@ def train(load=False):
                 continue
             test_bits = text_to_bits_batch(batch_words)
 
-            ai = torch.cat([test_bits, key_batch], dim=1)
+            ai = xor(test_bits, key_batch)
             ciph = alice(ai)
             ciph = torch.sign(ciph)
-            bi = torch.cat([ciph, key_batch], dim=1)
+            bi = xor(ciph, key_batch)
             dec_b = bob(bi)
             dec_texts = bits_to_text_batch(dec_b)
             
@@ -632,8 +636,8 @@ def test_saved():
     
     BIT_LENGTH = MESSAGE_LENGTH * 6
     HIDDEN_SIZE = 512
-    alice = ImprovedNetwork(BIT_LENGTH + len(key), HIDDEN_SIZE, BIT_LENGTH, "Alice").to(device)
-    bob = ImprovedNetwork(BIT_LENGTH + len(key), HIDDEN_SIZE, BIT_LENGTH, "Bob").to(device)
+    alice = ImprovedNetwork(BIT_LENGTH, HIDDEN_SIZE, BIT_LENGTH, "Alice").to(device)
+    bob = ImprovedNetwork(BIT_LENGTH, HIDDEN_SIZE, BIT_LENGTH, "Bob").to(device)
     alice.load('alice_test.pth')
     bob.load('bob_test.pth')
     
@@ -657,10 +661,10 @@ def test_saved():
         for w in test_words:
             test_bits = text_to_bits(w)
             test_bits = torch.tensor(test_bits, dtype=torch.float32, device=device)
-            ai = torch.cat([test_bits, key])
+            ai = xor(test_bits, key)
             ciph = alice(ai, single=True)
             ciph = torch.sign(ciph)
-            bi = torch.cat([ciph, key_2])
+            bi = xor(ciph, key_2)
             dec_b = bob(bi, single=True)
             dec = bits_to_text(dec_b)
             error = criterion(dec_b, test_bits).item()
