@@ -683,7 +683,9 @@ def test_saved():
         for original, decrypted in zip(batch, dec_texts):
             print(f"  '{original}' → '{decrypted}'")
         print()
-        decoded_b64 = ''.join(dec_texts).rstrip('=')
+        decoded_b64 = ''.join(dec_texts)
+        print(f"Combined Decoded Base64: '{decoded_b64}'")
+        print(f"Original base64: {input_text}")
         try:
             decoded_bytes = base64.b64decode(decoded_b64)
             final_output = decoded_bytes.decode()
