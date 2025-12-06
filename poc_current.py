@@ -321,6 +321,11 @@ def train(load=False):
 
         eve.eval()
 
+        key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
+        np.save('key.npy', key_np)
+        key = torch.tensor(key_np, dtype=torch.float32, device=device)
+        key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
+
         alice_input = torch.cat([plain_bits_batch, key_batch], dim=1)
         ciphertext_batch_original = alice(alice_input)
 
