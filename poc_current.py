@@ -31,7 +31,7 @@ def text_to_bits(text):
     bits = []
     for c in text:
         if c == ' ':
-            val = 52
+            val = 63
         elif 'a' <= c <= 'z':
             val = ord(c) - ord('a')
         elif 'A' <= c <= 'Z':
@@ -73,6 +73,8 @@ def bits_to_text(bits):
 
         if val == 62:
             chars.append('=')
+        elif val == 63:
+            chars.append(' ')
         elif val <= 25:
             chars.append(chr(val + ord('a')))
         elif val <= 51:
