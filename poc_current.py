@@ -69,7 +69,7 @@ def bits_to_text(bits):
         for j, bit in enumerate(chunk):
             if bit > 0:
                 val |= (1 << (5 - j))
-        val = min(62, val)
+        val = min(63, val)
 
         if val == 62:
             chars.append('=')
