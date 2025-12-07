@@ -265,7 +265,7 @@ def train(load=False):
     alice_and_bob_scheduler = optim.lr_scheduler.StepLR(alice_and_bob_optimizer, step_size=50000, gamma=0.5)
     # alice_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(alice_optimizer, T_0=1000, T_mult=2, eta_min=1e-7)
     # bob_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(bob_optimizer, T_0=1000, T_mult=2, eta_min=1e-7)
-    eve_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(eve_optimizer, T_0=1000, T_mult=2, eta_min=1e-7)
+    eve_scheduler = optim.lr_scheduler.StepLR(eve_optimizer, step_size=50000, gamma=0.5)
 
     print(f"Training for {TRAINING_EPISODES} episodes...")
     print("=" * 70)
@@ -314,7 +314,8 @@ def train(load=False):
             plaintexts += plaintexts
             ADVERSARIAL_WEIGHT = 0.0
         else:
-            ADVERSARIAL_WEIGHT = 0.0
+            if batch_i < 5000:
+                ADVERSARIAL_WEIGHT = 0.05
             plaintexts = generate_random_messages(BATCH_SIZE)
         plain_bits_batch = text_to_bits_batch(plaintexts)
 
@@ -459,11 +460,11 @@ def train(load=False):
             eve_guess_count = 0
             # TODO: need to fix this static switch logic a bit later
             if eve_accuracy > 80.0:
-                ADVERSARIAL_WEIGHT = min(2.0, ADVERSARIAL_WEIGHT * 1.2)
+                ADVERSARIAL_WEIGHT = min(0.7, ADVERSARIAL_WEIGHT * 1.2)
                 eve_use_smooth_l1 = False
             else:
                 if eve_accuracy < 20.0 and recent_accuracy > 85.0:
-                    ADVERSARIAL_WEIGHT = max(0.5, ADVERSARIAL_WEIGHT * 0.8)
+                    ADVERSARIAL_WEIGHT = max(0.2, ADVERSARIAL_WEIGHT * 0.8)
                 eve_use_smooth_l1 = True
 
             if recent_accuracy > best_accuracy:
