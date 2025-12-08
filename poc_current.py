@@ -538,6 +538,13 @@ def train(load=False):
 
                 if correct == len(test_words) and recent_accuracy >= 99.8:
                     print(f"\n Perfect performance achieved! Stopping early at episode {episode + 1}")
+                    print("=" * 70)
+                    # print all the weights and biases for both networks
+                    for name, param in alice.named_parameters():
+                        print(f"Alice {name}: {param.data}")
+                    print()
+                    for name, param in bob.named_parameters():
+                        print(f"Bob {name}: {param.data}")
                     break
     
     print("\n" + "=" * 70)
