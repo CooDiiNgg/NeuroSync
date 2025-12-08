@@ -5,6 +5,7 @@ import torch.optim as optim
 import string
 import os
 import numpy as np
+import base64
 
 
 MESSAGE_LENGTH = 16
@@ -13,7 +14,7 @@ TRAINING_EPISODES = 20000000
 BATCH_SIZE = 64
 
 with open("./words.txt", "r") as f:
-       word_list = [line.strip() + " " * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
+       word_list = [line.strip() + "=" * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -30,14 +31,17 @@ def text_to_bits(text):
     bits = []
     for c in text:
         if c == ' ':
-            val = 52
+            val = 63
         elif 'a' <= c <= 'z':
             val = ord(c) - ord('a')
         elif 'A' <= c <= 'Z':
             val = ord(c) - ord('A')
             val += 26
+        elif '0' <= c <= '9':
+            val = ord(c) - ord('0')
+            val += 52
         else:
-            val = 52
+            val = 62
 
         for i in range(5, -1, -1):
             bits.append(1.0 if (val >> i) & 1 else -1.0)
@@ -65,14 +69,18 @@ def bits_to_text(bits):
         for j, bit in enumerate(chunk):
             if bit > 0:
                 val |= (1 << (5 - j))
-        val = min(52, val)
+        val = min(63, val)
 
-        if val == 52:
+        if val == 62:
+            chars.append('=')
+        elif val == 63:
             chars.append(' ')
         elif val <= 25:
             chars.append(chr(val + ord('a')))
         elif val <= 51:
             chars.append(chr(val - 26 + ord('A')))
+        elif val <= 61:
+            chars.append(chr(val - 52 + ord('0')))
     return ''.join(chars)
 
 def bits_to_text_batch(bits):
@@ -130,6 +138,10 @@ class ResidualBlock(nn.Module):
 
 def confidence_loss(input, margin=0.7):
     return torch.mean(torch.clamp(margin - torch.abs(input), min=0.0))
+
+
+def xor(data, key):
+    return data * key
 
 class ImprovedNetwork(nn.Module):
     """Improved multi-layer network with proper architecture"""
@@ -222,8 +234,8 @@ def train(load=False):
     
     key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
 
-    alice = ImprovedNetwork(BIT_LENGTH + len(key), HIDDEN_SIZE, BIT_LENGTH, "Alice").to(device)
-    bob = ImprovedNetwork(BIT_LENGTH + len(key), HIDDEN_SIZE, BIT_LENGTH, "Bob").to(device)
+    alice = ImprovedNetwork(BIT_LENGTH, HIDDEN_SIZE, BIT_LENGTH, "Alice").to(device)
+    bob = ImprovedNetwork(BIT_LENGTH, HIDDEN_SIZE, BIT_LENGTH, "Bob").to(device)
     eve = ImprovedNetwork(BIT_LENGTH, HIDDEN_SIZE, BIT_LENGTH, "Eve").to(device)
 
     if load and os.path.exists('alice_test.pth') and os.path.exists('bob_test.pth'):
@@ -255,7 +267,7 @@ def train(load=False):
     alice_and_bob_scheduler = optim.lr_scheduler.StepLR(alice_and_bob_optimizer, step_size=50000, gamma=0.5)
     # alice_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(alice_optimizer, T_0=1000, T_mult=2, eta_min=1e-7)
     # bob_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(bob_optimizer, T_0=1000, T_mult=2, eta_min=1e-7)
-    eve_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(eve_optimizer, T_0=1000, T_mult=2, eta_min=1e-7)
+    eve_scheduler = optim.lr_scheduler.StepLR(eve_optimizer, step_size=50000, gamma=0.5)
 
     print(f"Training for {TRAINING_EPISODES} episodes...")
     print("=" * 70)
@@ -304,7 +316,8 @@ def train(load=False):
             plaintexts += plaintexts
             ADVERSARIAL_WEIGHT = 0.0
         else:
-            ADVERSARIAL_WEIGHT = 0.0
+            if batch_i < 5000:
+                ADVERSARIAL_WEIGHT = 0.05
             plaintexts = generate_random_messages(BATCH_SIZE)
         plain_bits_batch = text_to_bits_batch(plaintexts)
 
@@ -321,7 +334,12 @@ def train(load=False):
 
         eve.eval()
 
-        alice_input = torch.cat([plain_bits_batch, key_batch], dim=1)
+        key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
+        np.save('key.npy', key_np)
+        key = torch.tensor(key_np, dtype=torch.float32, device=device)
+        key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
+
+        alice_input = xor(plain_bits_batch, key_batch)
         ciphertext_batch_original = alice(alice_input)
 
 
@@ -339,7 +357,7 @@ def train(load=False):
 
         ciphertext_batch = straight_through_sign(ciphertext_batch_original)
 
-        bob_input = torch.cat([ciphertext_batch, key_batch], dim=1)
+        bob_input = xor(ciphertext_batch, key_batch)
         decrypted_bits_batch = bob(bob_input)
 
         # with torch.no_grad():
@@ -419,7 +437,7 @@ def train(load=False):
             bob.eval()
 
             with torch.no_grad():
-                alice_input_eve = torch.cat([plain_bits_batch, key_batch], dim=1)
+                alice_input_eve = xor(plain_bits_batch, key_batch)
                 ciphertext_batch_eve = alice(alice_input_eve) 
                 ciphertext_batch_eve = straight_through_sign(ciphertext_batch_eve)
             
@@ -444,11 +462,11 @@ def train(load=False):
             eve_guess_count = 0
             # TODO: need to fix this static switch logic a bit later
             if eve_accuracy > 80.0:
-                ADVERSARIAL_WEIGHT = min(2.0, ADVERSARIAL_WEIGHT * 1.2)
+                ADVERSARIAL_WEIGHT = min(0.7, ADVERSARIAL_WEIGHT * 1.2)
                 eve_use_smooth_l1 = False
             else:
                 if eve_accuracy < 20.0 and recent_accuracy > 85.0:
-                    ADVERSARIAL_WEIGHT = max(0.5, ADVERSARIAL_WEIGHT * 0.8)
+                    ADVERSARIAL_WEIGHT = max(0.2, ADVERSARIAL_WEIGHT * 0.8)
                 eve_use_smooth_l1 = True
 
             if recent_accuracy > best_accuracy:
@@ -498,10 +516,10 @@ def train(load=False):
                     for word in test_words:
                         pb = text_to_bits(word)
                         pb = torch.tensor(pb, dtype=torch.float32, device=device)
-                        ai = torch.cat([pb, key])
+                        ai = xor(pb, key)
                         ciph = alice(ai, single=True)
                         ciph = torch.sign(ciph)
-                        bi = torch.cat([ciph, key])
+                        bi = xor(ciph, key)
                         dec_b = bob(bi, single=True)
                         dec = bits_to_text(dec_b)
                         match = "YES:" if dec == word else "NO:"
@@ -520,6 +538,13 @@ def train(load=False):
 
                 if correct == len(test_words) and recent_accuracy >= 99.8:
                     print(f"\n Perfect performance achieved! Stopping early at episode {episode + 1}")
+                    print("=" * 70)
+                    # print all the weights and biases for both networks
+                    for name, param in alice.named_parameters():
+                        print(f"Alice {name}: {param.data}")
+                    print()
+                    for name, param in bob.named_parameters():
+                        print(f"Bob {name}: {param.data}")
                     break
     
     print("\n" + "=" * 70)
@@ -554,10 +579,10 @@ def train(load=False):
             test_batch = generate_random_messages(BATCH_SIZE)
             test_bits = text_to_bits_batch(test_batch)
 
-            ai = torch.cat([test_bits, key_batch], dim=1)
+            ai = xor(test_bits, key_batch)
             ciph = alice(ai)
             ciph = torch.sign(ciph)
-            bi = torch.cat([ciph, key_batch], dim=1)
+            bi = xor(ciph, key_batch)
             dec_b = bob(bi)
             dec_texts = bits_to_text_batch(dec_b)
             
@@ -570,17 +595,17 @@ def train(load=False):
                     correct += 1
         # now some real wods to test:
         with open("./real_words.txt", "r") as f:
-            real_words = [line.strip() + " " * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
+            real_words = [line.strip() + "=" * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
         for i in range(0, len(real_words), BATCH_SIZE):
             batch_words = real_words[i:i+BATCH_SIZE]
             if len(batch_words) < BATCH_SIZE:
                 for w in batch_words:
                     test_bits_single = text_to_bits(w)
                     test_bits_single = torch.tensor(test_bits_single, dtype=torch.float32, device=device)
-                    ai = torch.cat([test_bits_single, key])
+                    ai = xor(test_bits_single, key)
                     ciph = alice(ai, single=True)
                     ciph = torch.sign(ciph)
-                    bi = torch.cat([ciph, key])
+                    bi = xor(ciph, key)
                     dec_b = bob(bi, single=True)
                     dec = bits_to_text(dec_b)
                     match = "YES:" if w == dec else "NO:"
@@ -590,10 +615,10 @@ def train(load=False):
                 continue
             test_bits = text_to_bits_batch(batch_words)
 
-            ai = torch.cat([test_bits, key_batch], dim=1)
+            ai = xor(test_bits, key_batch)
             ciph = alice(ai)
             ciph = torch.sign(ciph)
-            bi = torch.cat([ciph, key_batch], dim=1)
+            bi = xor(ciph, key_batch)
             dec_b = bob(bi)
             dec_texts = bits_to_text_batch(dec_b)
             
@@ -618,13 +643,17 @@ def test_saved():
     
     print("Loading networks...")
     key_np = np.load('key.npy')
+    key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
     key = torch.tensor(key_np, dtype=torch.float32, device=device)
-    key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
+
+    # #temporary
+    # key_np_2 = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
+    # key_2 = torch.tensor(key_np_2, dtype=torch.float32, device=device)
     
     BIT_LENGTH = MESSAGE_LENGTH * 6
-    HIDDEN_SIZE = 768
-    alice = ImprovedNetwork(BIT_LENGTH + len(key), HIDDEN_SIZE, BIT_LENGTH, "Alice").to(device)
-    bob = ImprovedNetwork(BIT_LENGTH + len(key), HIDDEN_SIZE, BIT_LENGTH, "Bob").to(device)
+    HIDDEN_SIZE = 512
+    alice = ImprovedNetwork(BIT_LENGTH, HIDDEN_SIZE, BIT_LENGTH, "Alice").to(device)
+    bob = ImprovedNetwork(BIT_LENGTH, HIDDEN_SIZE, BIT_LENGTH, "Bob").to(device)
     alice.load('alice_test.pth')
     bob.load('bob_test.pth')
     
@@ -636,32 +665,43 @@ def test_saved():
     print("TESTING")
     print("=" * 70)
     
-    
-    with open("./real_words.txt", "r") as f:
-        test_words = [line.strip() + " " * (MESSAGE_LENGTH - len(line.strip())) for line in f if len(line.strip()) <= MESSAGE_LENGTH]
-    test_words += [word_list[np.random.randint(0, len(word_list))] for _ in range(50)]
-    
-    criterion = nn.MSELoss()
-    correct = 0
-    
+    input_text = input("Enter message to encrypt: ").strip()
+    input_text = base64.b64encode(input_text.encode()).decode()
+    print(f"Base64 Encoded Input: '{input_text}'")
+    batch = []
+    while len(input_text) > 0:
+        chunk = input_text[:MESSAGE_LENGTH]
+        input_text = input_text[MESSAGE_LENGTH:]
+        chunk = chunk.ljust(MESSAGE_LENGTH, '=')
+        batch.append(chunk)
+    print(f"Processing {len(batch)} chunks of {MESSAGE_LENGTH} characters each.\n")
+    input_bits = text_to_bits_batch(batch)
+    key_batch = key.unsqueeze(0).repeat(len(batch), 1)
     with torch.no_grad():
-        for w in test_words:
-            test_bits = text_to_bits(w)
-            test_bits = torch.tensor(test_bits, dtype=torch.float32, device=device)
-            ai = torch.cat([test_bits, key])
-            ciph = alice(ai, single=True)
-            ciph = torch.sign(ciph)
-            bi = torch.cat([ciph, key])
-            dec_b = bob(bi, single=True)
-            dec = bits_to_text(dec_b)
-            error = criterion(dec_b, test_bits).item()
-            match = "YES:" if w == dec else "NO:"
-            print(f"{match} '{w}' → '{dec}' | Error: {error:.6f}")
-            if w == dec:
-                correct += 1
-    
-    print(f"\n{'=' * 70}")
-    print(f"Score: {correct}/{len(test_words)} ({100*correct/len(test_words):.0f}%)")
+        ai = xor(input_bits, key_batch)
+        ciph = alice(ai)
+        ciph = torch.sign(ciph)
+        print("Encrypted ciphertexts:")
+        ciph_texts = bits_to_text_batch(ciph)
+        for original, ciph_text in zip(batch, ciph_texts):
+            print(f"  '{original}' → '{ciph_text}'")
+        print()
+        bi = xor(ciph, key_batch)
+        dec_b = bob(bi)
+        dec_texts = bits_to_text_batch(dec_b)
+        print("Decrypted texts:")
+        for original, decrypted in zip(batch, dec_texts):
+            print(f"  '{original}' → '{decrypted}'")
+        print()
+        decoded_b64 = ''.join(dec_texts)
+        print(f"Combined Decoded Base64: '{decoded_b64}'")
+        print(f"Original base64: {input_text}")
+        try:
+            decoded_bytes = base64.b64decode(decoded_b64)
+            final_output = decoded_bytes.decode()
+            print(f"Final Decoded Output: '{final_output}'")
+        except Exception as e:
+            print("Failed to decode base64 output. Possibly corrupted data.")
 
 
 if __name__ == "__main__":
