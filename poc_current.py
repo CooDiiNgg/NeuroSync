@@ -261,7 +261,7 @@ def train(load=False):
     alice_and_bob_optimizer = optim.AdamW(alice_and_bob_params, lr=0.0005, weight_decay=1e-4, betas=(0.9, 0.999))
     # alice_optimizer = optim.AdamW(alice.parameters(), lr=0.001, weight_decay=1e-4, betas=(0.9, 0.999))
     # bob_optimizer = optim.AdamW(bob.parameters(), lr=0.001, weight_decay=1e-4, betas=(0.9, 0.999))
-    eve_optimizer = optim.AdamW(eve.parameters(), lr=0.0003, weight_decay=1e-4, betas=(0.9, 0.999))
+    eve_optimizer = optim.AdamW(eve.parameters(), lr=0.001, weight_decay=1e-4, betas=(0.9, 0.999))
 
     
     alice_and_bob_scheduler = optim.lr_scheduler.StepLR(alice_and_bob_optimizer, step_size=50000, gamma=0.5)
@@ -282,7 +282,7 @@ def train(load=False):
     eve_use_smooth_l1 = False
     eve_guess_count = 0
 
-    EVE_TRAIN_SKIP = 2
+    EVE_TRAIN_SKIP = 1
     ADVERSARIAL_WEIGHT = 0.0
     CONFIDENCE_MAX = 0.3
     CONFIDENCE_WEIGHT = 0.0
@@ -334,10 +334,11 @@ def train(load=False):
 
         eve.eval()
 
-        key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
-        np.save('key.npy', key_np)
-        key = torch.tensor(key_np, dtype=torch.float32, device=device)
-        key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
+        if batch_i % 300 == 0:
+            key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
+            np.save('key.npy', key_np)
+            key = torch.tensor(key_np, dtype=torch.float32, device=device)
+            key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
 
         alice_input = xor(plain_bits_batch, key_batch)
         ciphertext_batch_original = alice(alice_input)
@@ -436,21 +437,22 @@ def train(load=False):
             alice.eval()
             bob.eval()
 
-            with torch.no_grad():
-                alice_input_eve = xor(plain_bits_batch, key_batch)
-                ciphertext_batch_eve = alice(alice_input_eve) 
-                ciphertext_batch_eve = straight_through_sign(ciphertext_batch_eve)
-            
-            eve_output = eve(ciphertext_batch_eve)
-            if eve_use_smooth_l1:
-                eve_loss = smooth_l1_criterion(eve_output, plain_bits_batch)
-            else:
-                eve_loss = mse_criterion(eve_output, plain_bits_batch)
-            eve_errors.append(eve_loss.item())
-            eve_optimizer.zero_grad()
-            eve_loss.backward()
-            torch.nn.utils.clip_grad_norm_(eve.parameters(), 0.5)
-            eve_optimizer.step()
+            for _ in range(3):
+                with torch.no_grad():
+                    alice_input_eve = xor(plain_bits_batch, key_batch)
+                    ciphertext_batch_eve = alice(alice_input_eve) 
+                    ciphertext_batch_eve = straight_through_sign(ciphertext_batch_eve)
+
+                eve_output = eve(ciphertext_batch_eve)
+                if eve_use_smooth_l1:
+                    eve_loss = smooth_l1_criterion(eve_output, plain_bits_batch)
+                else:
+                    eve_loss = mse_criterion(eve_output, plain_bits_batch)
+                eve_errors.append(eve_loss.item())
+                eve_optimizer.zero_grad()
+                eve_loss.backward()
+                torch.nn.utils.clip_grad_norm_(eve.parameters(), 1.0)
+                eve_optimizer.step()
             eve_scheduler.step()
         
         if (batch_i + 1) % (2500 // BATCH_SIZE) == 0:
@@ -539,16 +541,16 @@ def train(load=False):
                     'best_accuracy': best_accuracy
                 }, 'training_state_test.pth')
 
-                if correct == len(test_words) and recent_accuracy >= 99.8:
-                    print(f"\n Perfect performance achieved! Stopping early at episode {episode + 1}")
-                    print("=" * 70)
-                    # print all the weights and biases for both networks
-                    for name, param in alice.named_parameters():
-                        print(f"Alice {name}: {param.data}")
-                    print()
-                    for name, param in bob.named_parameters():
-                        print(f"Bob {name}: {param.data}")
-                    break
+                # if correct == len(test_words) and recent_accuracy >= 99.8:
+                #     print(f"\n Perfect performance achieved! Stopping early at episode {episode + 1}")
+                #     print("=" * 70)
+                #     # print all the weights and biases for both networks
+                #     for name, param in alice.named_parameters():
+                #         print(f"Alice {name}: {param.data}")
+                #     print()
+                #     for name, param in bob.named_parameters():
+                #         print(f"Bob {name}: {param.data}")
+                #     break
     
     print("\n" + "=" * 70)
     print("Saving networks...")
