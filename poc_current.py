@@ -234,6 +234,18 @@ def train(load=False):
     
     key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
 
+    if load and os.path.exists('eve_key.np'):
+        eve_key_np = np.load('eve_key.np')
+        eve_key = torch.tensor(eve_key_np, dtype=torch.float32, device=device)
+        print(f"Loaded {len(eve_key)}-bit Eve key\n")
+    else:
+        eve_key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
+        np.save('eve_key.np', eve_key_np)
+        eve_key = torch.tensor(eve_key_np, dtype=torch.float32, device=device)
+        print(f"Generated {len(eve_key)}-bit Eve key\n")
+    
+    eve_key_batch = eve_key.unsqueeze(0).repeat(BATCH_SIZE, 1)
+
     alice = ImprovedNetwork(BIT_LENGTH, HIDDEN_SIZE, BIT_LENGTH, "Alice").to(device)
     bob = ImprovedNetwork(BIT_LENGTH, HIDDEN_SIZE, BIT_LENGTH, "Bob").to(device)
     eve = ImprovedNetwork(BIT_LENGTH, HIDDEN_SIZE, BIT_LENGTH, "Eve").to(device)
@@ -290,6 +302,9 @@ def train(load=False):
     # PHASE_1_EPISODES = 5000
     # PHASE_2_EPISODES = 9000
     # discretization_prob = 0.0
+    maintanance_mode = False
+    maintanance_threshold = 99.8
+    maintanance_avrg = None
 
     # prev_ciphertext = None
     # repeating_ciphertext = 0
@@ -321,24 +336,51 @@ def train(load=False):
             plaintexts = generate_random_messages(BATCH_SIZE)
         plain_bits_batch = text_to_bits_batch(plaintexts)
 
+
+
+
+        key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
+        np.save('key.npy', key_np)
+        key = torch.tensor(key_np, dtype=torch.float32, device=device)
+        key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
+
         # if batch_i < PHASE_1_EPISODES:
         #     discretization_prob = 0.0
         # elif batch_i < PHASE_2_EPISODES:
         #     discretization_prob = (batch_i - PHASE_1_EPISODES) / (PHASE_2_EPISODES - PHASE_1_EPISODES)
         # else:
         #     discretization_prob = 1.0
-        
 
-        alice.train()
-        bob.train()
+        skip = False
+
+        if maintanance_mode:
+            alice.eval()
+            bob.eval()
+            with torch.no_grad():
+                alice_input = xor(plain_bits_batch, key_batch)
+                ciphertext_batch = alice(alice_input)
+                ciphertext_batch = torch.sign(ciphertext_batch)
+                bob_input = xor(ciphertext_batch, key_batch)
+                decrypted_bits_batch = bob(bob_input)
+                current_loss = mse_criterion(decrypted_bits_batch, plain_bits_batch).item()
+
+            if maintanance_avrg is not None:
+                loss_spike = current_loss > 1.5 * maintanance_avrg
+                eve_pressure = eve_guess_count / total_count > 0.2 if total_count > 0 else False
+                if not loss_spike and not eve_pressure:
+                    skip = True
+                    print(f"  Maintanance mode: Skipping Alice/Bob update due to stable loss ({current_loss:.6f})")
+                else:
+                    maintanance_avrg = None
+
+        
+        if not skip:
+            alice.train()
+            bob.train()
 
         eve.eval()
 
-        if batch_i % 300 == 0:
-            key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
-            np.save('key.npy', key_np)
-            key = torch.tensor(key_np, dtype=torch.float32, device=device)
-            key_batch = key.unsqueeze(0).repeat(BATCH_SIZE, 1)
+
 
         alice_input = xor(plain_bits_batch, key_batch)
         ciphertext_batch_original = alice(alice_input)
@@ -370,9 +412,12 @@ def train(load=False):
         #         eve_loss = mse_criterion(eve_output, plain_bits_batch)
 
         #     eve_errors.append(eve_loss.item())
+        with torch.no_grad():
+            alice_input_eve = xor(plain_bits_batch, eve_key_batch)
+            ciphertext_batch_eve = alice(alice_input_eve) 
+            ciphertext_batch_eve = straight_through_sign(ciphertext_batch_eve)
 
-
-        eve_output_alice = eve(ciphertext_batch)
+        eve_output_alice = eve(ciphertext_batch_eve)
 
         if eve_use_smooth_l1:
             eve_loss_alice = smooth_l1_criterion(eve_output_alice, plain_bits_batch)
@@ -392,30 +437,31 @@ def train(load=False):
         # else:
         #     total_loss = loss - ADVERSARIAL_WEIGHT * eve_loss_alice
 
-        total_loss = loss + CONFIDENCE_WEIGHT * confidence_loss(ciphertext_batch_original) - ADVERSARIAL_WEIGHT * eve_loss_alice
-        # if repeating_ciphertext >= 10:
-        #     print(f"Detected {repeating_ciphertext} repeating ciphertexts, applying penalty and resetting Alice's temperature.")
-        #     total_loss += 200.0
-        #     with torch.no_grad():
-        #         alice.temperature.data = torch.tensor(1.0, device=device)
-        #     repeating_ciphertext = 0
+        if not skip:
+            total_loss = loss + CONFIDENCE_WEIGHT * confidence_loss(ciphertext_batch_original) - ADVERSARIAL_WEIGHT * eve_loss_alice
+            # if repeating_ciphertext >= 10:
+            #     print(f"Detected {repeating_ciphertext} repeating ciphertexts, applying penalty and resetting Alice's temperature.")
+            #     total_loss += 200.0
+            #     with torch.no_grad():
+            #         alice.temperature.data = torch.tensor(1.0, device=device)
+            #     repeating_ciphertext = 0
 
-        # alice_optimizer.zero_grad()
-        # bob_optimizer.zero_grad()
-        alice_and_bob_optimizer.zero_grad()
+            # alice_optimizer.zero_grad()
+            # bob_optimizer.zero_grad()
+            alice_and_bob_optimizer.zero_grad()
 
-        total_loss.backward()
+            total_loss.backward()
 
-        max_norm = 1.0 if loss.item() < 0.1 else 0.5
-        torch.nn.utils.clip_grad_norm_(bob.parameters(), max_norm)
-        torch.nn.utils.clip_grad_norm_(alice.parameters(), max_norm)
+            max_norm = 1.0 if loss.item() < 0.1 else 0.5
+            torch.nn.utils.clip_grad_norm_(bob.parameters(), max_norm)
+            torch.nn.utils.clip_grad_norm_(alice.parameters(), max_norm)
 
-        # alice_optimizer.step()
-        # bob_optimizer.step()
-        # alice_scheduler.step()
-        # bob_scheduler.step()
-        alice_and_bob_optimizer.step()
-        alice_and_bob_scheduler.step()
+            # alice_optimizer.step()
+            # bob_optimizer.step()
+            # alice_scheduler.step()
+            # bob_scheduler.step()
+            alice_and_bob_optimizer.step()
+            alice_and_bob_scheduler.step()
 
         with torch.no_grad():
             decrypted_texts = bits_to_text_batch(decrypted_bits_batch.detach())
@@ -439,7 +485,7 @@ def train(load=False):
 
             for _ in range(3):
                 with torch.no_grad():
-                    alice_input_eve = xor(plain_bits_batch, key_batch)
+                    alice_input_eve = xor(plain_bits_batch, eve_key_batch)
                     ciphertext_batch_eve = alice(alice_input_eve) 
                     ciphertext_batch_eve = straight_through_sign(ciphertext_batch_eve)
 
@@ -462,13 +508,19 @@ def train(load=False):
 
             eve_accuracy = (100 * eve_guess_count / total_count )if total_count > 0 else 0.0
             eve_guess_count = 0
-            # TODO: need to fix this static switch logic a bit later
-            if eve_accuracy > 80.0:
-                ADVERSARIAL_WEIGHT = min(0.7, ADVERSARIAL_WEIGHT * 1.2)
+
+            if eve_accuracy > 50.0:
+                ADVERSARIAL_WEIGHT = min(1.0, ADVERSARIAL_WEIGHT * 1.3)
                 eve_use_smooth_l1 = False
+            elif eve_accuracy > 20.0:
+                ADVERSARIAL_WEIGHT = min(0.7, ADVERSARIAL_WEIGHT * 1.1)
+                eve_use_smooth_l1 = False
+            elif eve_accuracy > 5.0:
+                ADVERSARIAL_WEIGHT = min(0.5, ADVERSARIAL_WEIGHT + 0.02)
+                eve_use_smooth_l1 = True
             else:
-                if eve_accuracy < 20.0 and recent_accuracy > 85.0:
-                    ADVERSARIAL_WEIGHT = max(0.2, ADVERSARIAL_WEIGHT * 0.8)
+                if recent_accuracy > 85.0:
+                    ADVERSARIAL_WEIGHT = max(0.1, ADVERSARIAL_WEIGHT * 0.95)
                 eve_use_smooth_l1 = True
 
             if recent_accuracy > best_accuracy:
@@ -489,6 +541,17 @@ def train(load=False):
                 CONFIDENCE_WEIGHT = ((bit_accuracy - 90.0) / 7.0) * CONFIDENCE_MAX
             else:
                 CONFIDENCE_WEIGHT = CONFIDENCE_MAX
+
+            
+            if recent_accuracy >= maintanance_threshold and not maintanance_mode:
+                maintanance_mode = True
+                maintanance_avrg = avg_error
+                print(f"  Entering maintanance mode at {recent_accuracy:.2f}% accuracy.")
+            elif recent_accuracy < maintanance_threshold - 3.0 and maintanance_mode:
+                maintanance_mode = False
+                maintanance_avrg = None
+                print(f"  Exiting maintanance mode at {recent_accuracy:.2f}% accuracy.")
+
 
             print(f"\nEpisode {episode}/{TRAINING_EPISODES}")
             print(f"  Avg Bob Error: {avg_error:.6f}")
