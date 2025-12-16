@@ -299,6 +299,12 @@ def train(load=False):
     CONFIDENCE_MAX = 0.3
     CONFIDENCE_WEIGHT = 0.0
 
+    ADVERSARIAL_MAX = 0.15
+
+    running_bob_accuracy = 0.0
+    running_eve_accuracy = 0.0
+    accuracy_momentum = 0.9
+
     # PHASE_1_EPISODES = 5000
     # PHASE_2_EPISODES = 9000
     # discretization_prob = 0.0
@@ -331,8 +337,6 @@ def train(load=False):
             plaintexts += plaintexts
             ADVERSARIAL_WEIGHT = 0.0
         else:
-            if batch_i < 5000:
-                ADVERSARIAL_WEIGHT = 0.05
             plaintexts = generate_random_messages(BATCH_SIZE)
         plain_bits_batch = text_to_bits_batch(plaintexts)
 
@@ -438,7 +442,11 @@ def train(load=False):
         #     total_loss = loss - ADVERSARIAL_WEIGHT * eve_loss_alice
 
         if not skip:
-            total_loss = loss + CONFIDENCE_WEIGHT * confidence_loss(ciphertext_batch_original) - ADVERSARIAL_WEIGHT * eve_loss_alice
+            if running_bob_accuracy >= 98.0:
+                effective_adv_weight = ADVERSARIAL_WEIGHT
+            else:
+                effective_adv_weight = 0.0
+            total_loss = loss + CONFIDENCE_WEIGHT * confidence_loss(ciphertext_batch_original) - effective_adv_weight * eve_loss_alice
             # if repeating_ciphertext >= 10:
             #     print(f"Detected {repeating_ciphertext} repeating ciphertexts, applying penalty and resetting Alice's temperature.")
             #     total_loss += 200.0
@@ -509,19 +517,22 @@ def train(load=False):
             eve_accuracy = (100 * eve_guess_count / total_count )if total_count > 0 else 0.0
             eve_guess_count = 0
 
-            if eve_accuracy > 50.0:
-                ADVERSARIAL_WEIGHT = min(1.0, ADVERSARIAL_WEIGHT * 1.3)
-                eve_use_smooth_l1 = False
-            elif eve_accuracy > 20.0:
-                ADVERSARIAL_WEIGHT = min(0.7, ADVERSARIAL_WEIGHT * 1.1)
-                eve_use_smooth_l1 = False
-            elif eve_accuracy > 5.0:
-                ADVERSARIAL_WEIGHT = min(0.5, ADVERSARIAL_WEIGHT + 0.02)
-                eve_use_smooth_l1 = True
+            running_bob_accuracy = accuracy_momentum * running_bob_accuracy + (1 - accuracy_momentum) * recent_accuracy
+            running_eve_accuracy = accuracy_momentum * running_eve_accuracy + (1 - accuracy_momentum) * eve_accuracy
+
+            if running_bob_accuracy < 95.0:
+                ADVERSARIAL_WEIGHT = 0.0
+            elif running_bob_accuracy < 98.0:
+                ADVERSARIAL_WEIGHT = max(0.0, ADVERSARIAL_WEIGHT - 0.02)
             else:
-                if recent_accuracy > 85.0:
-                    ADVERSARIAL_WEIGHT = max(0.1, ADVERSARIAL_WEIGHT * 0.95)
-                eve_use_smooth_l1 = True
+                if running_eve_accuracy > 70.0:
+                    ADVERSARIAL_WEIGHT = min(ADVERSARIAL_MAX, ADVERSARIAL_WEIGHT + 0.01)
+                elif running_eve_accuracy > 40.0:
+                    ADVERSARIAL_WEIGHT = min(ADVERSARIAL_MAX, ADVERSARIAL_WEIGHT + 0.005)
+                elif running_eve_accuracy < 20.0:
+                    ADVERSARIAL_WEIGHT = max(0.02, ADVERSARIAL_WEIGHT - 0.005)
+
+            eve_use_smooth_l1 = running_eve_accuracy < 30.0
 
             if recent_accuracy > best_accuracy:
                 best_accuracy = recent_accuracy
