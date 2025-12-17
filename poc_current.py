@@ -520,7 +520,7 @@ def train(load=False):
             running_bob_accuracy = accuracy_momentum * running_bob_accuracy + (1 - accuracy_momentum) * recent_accuracy
             running_eve_accuracy = accuracy_momentum * running_eve_accuracy + (1 - accuracy_momentum) * eve_accuracy
 
-            if (batch_i + 1) % (5000 // BATCH_SIZE) == 0:
+            if (batch_i + 1) % (2500 // BATCH_SIZE) == 0:
                 eve_key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
                 np.save('eve_key.np', eve_key_np)
                 eve_key = torch.tensor(eve_key_np, dtype=torch.float32, device=device)
