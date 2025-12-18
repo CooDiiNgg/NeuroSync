@@ -143,6 +143,53 @@ def confidence_loss(input, margin=0.7):
 def xor(data, key):
     return data * key
 
+def sec_check_leakage(plaintext_bits, ciphertext_bits):
+    with torch.no_grad():
+        pt_sign = torch.sign(plaintext_bits)
+        ct_sign = torch.sign(ciphertext_bits)
+        matches = (pt_sign == ct_sign).float().mean().item()
+        penalty = max(0.0, (matches - 0.55) * 2.0)
+    return penalty
+
+def sec_check_diversity(ciphertext_bits):
+    with torch.no_grad():
+        variance = ciphertext_bits.var(dim=0).mean().item()
+        penalty = max(0.0, (0.20 - variance) * 2.0)
+    return min(penalty, 1.0)
+
+def sec_check_repetition(ciphertext_bits):
+    with torch.no_grad():
+        ciphertext_sign = torch.sign(ciphertext_bits)
+        repetitions = []
+        for i in range(8):
+            rep = (ciphertext_sign[i] == ciphertext_sign[i+1]).float().mean().item()
+            repetitions.append(rep)
+        avg_rep = np.mean(repetitions)
+        penalty = max(0.0, (avg_rep - 0.6) * 2.0)
+    return penalty
+
+def sec_check_key_sensitivity(alice, plaintext_bits, key_batch):
+    with torch.no_grad():
+        batch_size = plaintext_bits.size(0)
+        key_flipped = key_batch.clone()
+        flip_idx = torch.randint(0, key_flipped.size(1), (batch_size,))
+        key_flipped[torch.arange(batch_size), flip_idx] *= -1.0
+        ai_original = xor(plaintext_bits, key_batch)
+        ai_flipped = xor(plaintext_bits, key_flipped)
+        ciph_original = alice(ai_original)
+        ciph_flipped = alice(ai_flipped)
+        diff = (torch.sign(ciph_original) != torch.sign(ciph_flipped)).float().mean().item()
+        penalty = max(0.0, (0.5 - diff) * 2.0)
+    return penalty
+
+def sec_check_total(alice, plaintext_bits, ciphertext_bits, key_batch):
+    leakage = sec_check_leakage(plaintext_bits, ciphertext_bits)
+    diversity = sec_check_diversity(ciphertext_bits)
+    repetition = sec_check_repetition(ciphertext_bits)
+    key_sensitivity = sec_check_key_sensitivity(alice, plaintext_bits, key_batch)
+    total_penalty = leakage + diversity + repetition + key_sensitivity
+    return total_penalty / 4.0, [leakage, diversity, repetition, key_sensitivity]
+
 class ImprovedNetwork(nn.Module):
     """Improved multi-layer network with proper architecture"""
     def __init__(self, input_size, hidden_size, output_size, name="net"):
@@ -298,19 +345,27 @@ def train(load=False):
     ADVERSARIAL_WEIGHT = 0.0
     CONFIDENCE_MAX = 0.3
     CONFIDENCE_WEIGHT = 0.0
+    SECURITY_WEIGHT = 0.0
+    SECURITY_MAX = 0.1
 
     ADVERSARIAL_MAX = 0.15
 
     running_bob_accuracy = 0.0
     running_eve_accuracy = 0.0
+    running_security = 0.0
     accuracy_momentum = 0.9
 
     # PHASE_1_EPISODES = 5000
     # PHASE_2_EPISODES = 9000
     # discretization_prob = 0.0
     maintanance_mode = False
-    maintanance_threshold = 99.8
-    maintanance_avrg = None
+    maintanance_threshold = 99.0
+    maintanance_threshold_exit = 95.0
+    consecutive_accuracy = 0
+    consecutive_accuracy_required = 3
+
+    best_alice_temp = None
+    best_bob_temp = None
 
     # prev_ciphertext = None
     # repeating_ciphertext = 0
@@ -355,27 +410,7 @@ def train(load=False):
         # else:
         #     discretization_prob = 1.0
 
-        skip = False
-
-        if maintanance_mode:
-            alice.eval()
-            bob.eval()
-            with torch.no_grad():
-                alice_input = xor(plain_bits_batch, key_batch)
-                ciphertext_batch = alice(alice_input)
-                ciphertext_batch = torch.sign(ciphertext_batch)
-                bob_input = xor(ciphertext_batch, key_batch)
-                decrypted_bits_batch = bob(bob_input)
-                current_loss = mse_criterion(decrypted_bits_batch, plain_bits_batch).item()
-
-            if maintanance_avrg is not None:
-                loss_spike = current_loss > 1.5 * maintanance_avrg
-                eve_pressure = eve_guess_count / total_count > 0.2 if total_count > 0 else False
-                if not loss_spike and not eve_pressure:
-                    skip = True
-                    print(f"  Maintanance mode: Skipping Alice/Bob update due to stable loss ({current_loss:.6f})")
-                else:
-                    maintanance_avrg = None
+        skip = maintanance_mode
 
         
         if not skip:
@@ -442,11 +477,15 @@ def train(load=False):
         #     total_loss = loss - ADVERSARIAL_WEIGHT * eve_loss_alice
 
         if not skip:
+            sec_loss, details = sec_check_total(alice, plain_bits_batch, ciphertext_batch, key_batch)
+            running_security = (0.9 * running_security) + (0.05 * sec_loss)
+            sec_loss = SECURITY_WEIGHT * sec_loss
+
             if running_bob_accuracy >= 98.0:
                 effective_adv_weight = ADVERSARIAL_WEIGHT
             else:
                 effective_adv_weight = 0.0
-            total_loss = loss + CONFIDENCE_WEIGHT * confidence_loss(ciphertext_batch_original) - effective_adv_weight * eve_loss_alice
+            total_loss = loss + CONFIDENCE_WEIGHT * confidence_loss(ciphertext_batch_original) + sec_loss - effective_adv_weight * eve_loss_alice
             # if repeating_ciphertext >= 10:
             #     print(f"Detected {repeating_ciphertext} repeating ciphertexts, applying penalty and resetting Alice's temperature.")
             #     total_loss += 200.0
@@ -515,28 +554,64 @@ def train(load=False):
             episode = (batch_i + 1) * BATCH_SIZE
 
             eve_accuracy = (100 * eve_guess_count / total_count )if total_count > 0 else 0.0
-            eve_guess_count = 0
 
             running_bob_accuracy = accuracy_momentum * running_bob_accuracy + (1 - accuracy_momentum) * recent_accuracy
             running_eve_accuracy = accuracy_momentum * running_eve_accuracy + (1 - accuracy_momentum) * eve_accuracy
 
-            if (batch_i + 1) % (2500 // BATCH_SIZE) == 0:
-                eve_key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
-                np.save('eve_key.np', eve_key_np)
-                eve_key = torch.tensor(eve_key_np, dtype=torch.float32, device=device)
-                eve_key_batch = eve_key.unsqueeze(0).repeat(BATCH_SIZE, 1)
 
-            if running_bob_accuracy < 95.0:
-                ADVERSARIAL_WEIGHT = 0.0
-            elif running_bob_accuracy < 98.0:
-                ADVERSARIAL_WEIGHT = max(0.0, ADVERSARIAL_WEIGHT - 0.02)
+            eve_key_np = np.random.choice([-1.0, 1.0], KEY_SIZE * 6)
+            np.save('eve_key.np', eve_key_np)
+            eve_key = torch.tensor(eve_key_np, dtype=torch.float32, device=device)
+            eve_key_batch = eve_key.unsqueeze(0).repeat(BATCH_SIZE, 1)
+
+            if not maintanance_mode:
+                if running_bob_accuracy >= maintanance_threshold:
+                    consecutive_accuracy += 1
+                    if consecutive_accuracy >= consecutive_accuracy_required:
+                        print(f"\nEntering maintanance mode at episode {episode} with running Bob accuracy {running_bob_accuracy:.2f}%")
+                        maintanance_mode = True
+                        best_alice_temp = {k: v.clone() for k, v in alice.state_dict().items()}
+                        best_bob_temp = {k: v.clone() for k, v in bob.state_dict().items()}
+                else:
+                    consecutive_accuracy = 0
             else:
-                if running_eve_accuracy > 70.0:
-                    ADVERSARIAL_WEIGHT = min(ADVERSARIAL_MAX, ADVERSARIAL_WEIGHT + 0.01)
-                elif running_eve_accuracy > 40.0:
-                    ADVERSARIAL_WEIGHT = min(ADVERSARIAL_MAX, ADVERSARIAL_WEIGHT + 0.005)
-                elif running_eve_accuracy < 20.0:
-                    ADVERSARIAL_WEIGHT = max(0.02, ADVERSARIAL_WEIGHT - 0.005)
+                should_exit = False
+                exit_reason = ""
+                
+                if running_bob_accuracy < maintanance_threshold_exit:
+                    should_exit = True
+                    exit_reason = f"running accuracy dropped to {running_bob_accuracy:.1f}%"
+                elif running_eve_accuracy > 60.0 and running_security > 0.4:
+                    should_exit = True
+                    exit_reason = f"security alert: Eve={running_eve_accuracy:.1f}%, sec_score={running_security:.3f}"
+                
+                if should_exit:
+                    print(f"\nExiting maintanance mode at episode {episode} due to {exit_reason}.")
+                    maintanance_mode = False
+                    consecutive_accuracy = 0
+                    if best_alice_temp is not None and best_bob_temp is not None and running_bob_accuracy < 90.0:
+                        alice.load_state_dict(best_alice_temp)
+                        bob.load_state_dict(best_bob_temp)
+                        running_bob_accuracy = 95.0
+
+            if not maintanance_mode:
+                if running_bob_accuracy < 95.0:
+                    ADVERSARIAL_WEIGHT = 0.0
+                    SECURITY_WEIGHT = 0.0
+                elif running_bob_accuracy < 98.0:
+                    ADVERSARIAL_WEIGHT = max(0.0, ADVERSARIAL_WEIGHT - 0.02)
+                    SECURITY_WEIGHT = max(0.0, SECURITY_WEIGHT - 0.01)
+                else:
+                    if running_eve_accuracy > 70.0:
+                        ADVERSARIAL_WEIGHT = min(ADVERSARIAL_MAX, ADVERSARIAL_WEIGHT + 0.01)
+                    elif running_eve_accuracy > 40.0:
+                        ADVERSARIAL_WEIGHT = min(ADVERSARIAL_MAX, ADVERSARIAL_WEIGHT + 0.005)
+                    elif running_eve_accuracy < 20.0:
+                        ADVERSARIAL_WEIGHT = max(0.02, ADVERSARIAL_WEIGHT - 0.005)
+                    if running_security > 0.3:
+                        SECURITY_WEIGHT = min(SECURITY_MAX, SECURITY_WEIGHT + 0.01)
+                    elif running_security < 0.1:
+                        SECURITY_WEIGHT = max(0.0, SECURITY_WEIGHT - 0.005)
 
             eve_use_smooth_l1 = running_eve_accuracy < 30.0
 
@@ -544,6 +619,9 @@ def train(load=False):
                 best_accuracy = recent_accuracy
                 plateau_count = 0
                 use_smooth_l1 = False
+                if recent_accuracy >= maintanance_threshold:
+                    best_alice_temp = {k: v.clone() for k, v in alice.state_dict().items()}
+                    best_bob_temp = {k: v.clone() for k, v in bob.state_dict().items()}
             else:
                 plateau_count += 1
                 if plateau_count >= 10 and recent_accuracy < 90.0:
@@ -558,17 +636,7 @@ def train(load=False):
                 CONFIDENCE_WEIGHT = ((bit_accuracy - 90.0) / 7.0) * CONFIDENCE_MAX
             else:
                 CONFIDENCE_WEIGHT = CONFIDENCE_MAX
-
             
-            if recent_accuracy >= maintanance_threshold and not maintanance_mode:
-                maintanance_mode = True
-                maintanance_avrg = avg_error
-                print(f"  Entering maintanance mode at {recent_accuracy:.2f}% accuracy.")
-            elif recent_accuracy < maintanance_threshold - 3.0 and maintanance_mode:
-                maintanance_mode = False
-                maintanance_avrg = None
-                print(f"  Exiting maintanance mode at {recent_accuracy:.2f}% accuracy.")
-
 
             print(f"\nEpisode {episode}/{TRAINING_EPISODES}")
             print(f"  Avg Bob Error: {avg_error:.6f}")
@@ -589,6 +657,7 @@ def train(load=False):
 
             perfect_count = 0
             total_count = 0
+            eve_guess_count = 0
             
             if (batch_i + 1) % (10000 // BATCH_SIZE) == 0:
                 alice.eval()
@@ -613,6 +682,19 @@ def train(load=False):
                             correct += 1
                 print(f"  Score: {correct}/{len(test_words)} ({100*correct/len(test_words):.0f}%)")
                 
+                print(f"\n  Security Checks:")
+                with torch.no_grad():
+                    test_plain = text_to_bits_batch(generate_random_messages(BATCH_SIZE))
+                    test_cipher = alice(xor(test_plain, key_batch))
+                    test_cipher = torch.sign(test_cipher)
+                    _, details = sec_check_total(alice, test_plain, test_cipher, key_batch)
+                    check_names = ["Plaintext Leak", "Diversity", "Bit Balance", 
+                                  "Correlation", "Repetition", "Key Sensitivity"]
+                    for name, val in zip(check_names, details):
+                        status = "OK" if val < 0.2 else "WARN" if val < 0.4 else "BAD"
+                        print(f"    {name}: {val:.4f} [{status}]")
+
+
                 torch.save({
                     'alice_and_bob_optimizer': alice_and_bob_optimizer.state_dict(),
                     # 'alice_optimizer': alice_optimizer.state_dict(),
