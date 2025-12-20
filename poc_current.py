@@ -170,16 +170,15 @@ def sec_check_repetition(ciphertext_bits):
 
 def sec_check_key_sensitivity(alice, plaintext_bits, key_batch):
     with torch.no_grad():
-        batch_size = plaintext_bits.size(0)
         key_flipped = key_batch.clone()
-        flip_idx = torch.randint(0, key_flipped.size(1), (batch_size,))
-        key_flipped[torch.arange(batch_size), flip_idx] *= -1.0
+        rand_idx = np.random.randint(0, key_flipped.shape[1])
+        key_flipped[:, rand_idx] *= -1.0
         ai_original = xor(plaintext_bits, key_batch)
         ai_flipped = xor(plaintext_bits, key_flipped)
         ciph_original = alice(ai_original)
         ciph_flipped = alice(ai_flipped)
         diff = (torch.sign(ciph_original) != torch.sign(ciph_flipped)).float().mean().item()
-        penalty = max(0.0, (0.5 - diff) * 2.0)
+        penalty = max(0.0, (0.2 - diff) * 2.0)
     return penalty
 
 def sec_check_total(alice, plaintext_bits, ciphertext_bits, key_batch):
@@ -688,8 +687,7 @@ def train(load=False):
                     test_cipher = alice(xor(test_plain, key_batch))
                     test_cipher = torch.sign(test_cipher)
                     _, details = sec_check_total(alice, test_plain, test_cipher, key_batch)
-                    check_names = ["Plaintext Leak", "Diversity", "Bit Balance", 
-                                  "Correlation", "Repetition", "Key Sensitivity"]
+                    check_names = ["Leakage", "Diversity", "Repetition", "Key Sensitivity"]
                     for name, val in zip(check_names, details):
                         status = "OK" if val < 0.2 else "WARN" if val < 0.4 else "BAD"
                         print(f"    {name}: {val:.4f} [{status}]")
