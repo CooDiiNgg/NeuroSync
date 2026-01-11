@@ -1,10 +1,28 @@
+"""
+Single-item encoding and decoding functions for text messages to bit sequences and vice versa.
+"""
+
 import torch
 import numpy as np
 from typing import Union, List
 
 from NeuroSync.encoding.constants import MESSAGE_LENGTH, BITS_PER_CHAR
 
+
 def text_to_bits(text: str, message_length: int = MESSAGE_LENGTH) -> List[float]:
+    """
+    Converts text to binary representation.
+    
+    Each character is encoded as 6 bits, with values represented as
+    +1.0 (bit=1) or -1.0 (bit=0) for neural network compatibility.
+    
+    Args:
+        text: Input text string
+        message_length: Target message length (will pad/truncate)
+    
+    Returns:
+        List of floats (+1.0 or -1.0) representing bits
+    """
     text = text.ljust(message_length)[:message_length]
     bits = []
     
@@ -26,6 +44,15 @@ def text_to_bits(text: str, message_length: int = MESSAGE_LENGTH) -> List[float]
     return bits
 
 def bits_to_text(bits: Union[torch.Tensor, np.ndarray, List[float]]) -> str:
+    """
+    Converts binary representation back to text.
+    
+    Args:
+        bits: Tensor, array, or list of bit values (+/- floats)
+    
+    Returns:
+        Decoded text string
+    """
     if isinstance(bits, torch.Tensor):
         bits = bits.detach().cpu().numpy().tolist()
     elif isinstance(bits, np.ndarray):
