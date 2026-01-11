@@ -1,3 +1,7 @@
+"""
+Constants for bit encoding and decoding in NeuroSync.
+"""
+
 MESSAGE_LENGTH = 16
 BITS_PER_CHAR = 6
 BIT_LENGTH = MESSAGE_LENGTH * BITS_PER_CHAR
