@@ -1,3 +1,7 @@
+"""
+Security analysis package for NeuroSync encryption schemes.
+"""
+
 from NeuroSync.security.checks import (
     check_leakage,
     check_diversity,
