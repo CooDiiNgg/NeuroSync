@@ -1,3 +1,7 @@
+"""
+Security checks for NeuroSync encryption schemes.
+"""
+
 import torch
 import numpy as np
 from typing import Tuple, List, Callable
@@ -9,6 +13,19 @@ def check_leakage(
     plaintext_bits: torch.Tensor,
     ciphertext_bits: torch.Tensor,
 ) -> float:
+    """
+    Checks for information leakage from plaintext to ciphertext.
+    
+    Measures how many bit positions match between plaintext and ciphertext.
+    A secure cipher should have ~50% match rate (random).
+    
+    Args:
+        plaintext_bits: Original plaintext tensor
+        ciphertext_bits: Encrypted ciphertext tensor
+    
+    Returns:
+        Penalty value (0 = good, higher = worse)
+    """
     with torch.no_grad():
         pt_sign = torch.sign(plaintext_bits)
         ct_sign = torch.sign(ciphertext_bits)
@@ -17,12 +34,36 @@ def check_leakage(
     return penalty
 
 def check_diversity(ciphertext_bits: torch.Tensor) -> float:
+    """
+    Checks ciphertext diversity across batch.
+    
+    Measures variance in ciphertext bits across samples.
+    Low variance indicates Alice is producing similar outputs.
+    
+    Args:
+        ciphertext_bits: Ciphertext tensor (batch_size, bit_length)
+    
+    Returns:
+        Penalty value (0 = good, higher = worse)
+    """
     with torch.no_grad():
         variance = torch.var(ciphertext_bits.float(), dim=0).mean().item()
         penalty = max(0.0, (0.20 - variance) * 2.0)
     return penalty
 
 def check_repetition(ciphertext_bits: torch.Tensor) -> float:
+    """
+    Checks for repetition patterns in ciphertext.
+    
+    Measures similarity between a few samples in the batch.
+    High similarity indicates potential pattern memorization.
+    
+    Args:
+        ciphertext_bits: Ciphertext tensor (batch_size, bit_length)
+    
+    Returns:
+        Penalty value (0 = good, higher = worse)
+    """
     with torch.no_grad():
         num_samples = min(ciphertext_bits.size(0), 10)
         repetitions = []
@@ -39,6 +80,17 @@ def check_key_sensitivity(
     plaintext_bits: torch.Tensor,
     key_batch: torch.Tensor,
 ) -> float:
+    """
+    Checks sensitivity to key changes.
+    
+    Args:
+        alice: Alice network (callable)
+        plaintext_bits: Plaintext tensor
+        key_batch: Key tensor
+    
+    Returns:
+        Penalty value (0 = good, higher = worse)
+    """
     with torch.no_grad():
         key_flipped = key_batch.clone()
         rand_idx = np.random.randint(0, key_flipped.shape[1])
@@ -60,6 +112,18 @@ def check_total(
     ciphertext_bits: torch.Tensor,
     key_batch: torch.Tensor,
 ) -> Tuple[float, List[float]]:
+    """
+    Runs all security checks and return total penalty.
+    
+    Args:
+        alice: Alice network
+        plaintext_bits: Plaintext tensor
+        ciphertext_bits: Ciphertext tensor
+        key_batch: Key tensor
+    
+    Returns:
+        Tuple of (average_penalty, [leakage, diversity, repetition, key_sensitivity])
+    """
     penalties = []
     
     leakage_penalty = check_leakage(plaintext_bits, ciphertext_bits)
