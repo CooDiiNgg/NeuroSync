@@ -1,3 +1,7 @@
+"""
+Device management utilities for NeuroSync.
+"""
+
 import torch
 from typing import Optional
 from contextlib import contextmanager
@@ -6,6 +10,15 @@ from contextlib import contextmanager
 _device: Optional[torch.device] = None
 
 def get_device(force_cpu: bool = False) -> torch.device:
+    """
+    Gets the appropriate compute device.
+    
+    Args:
+        force_cpu: If True, always return CPU device
+    
+    Returns:
+        torch.device for computation
+    """
     global _device
 
     if force_cpu:
@@ -23,11 +36,19 @@ def get_device(force_cpu: bool = False) -> torch.device:
     return _device
 
 def set_device(device: torch.device) -> None:
+    """Sets the global compute device."""
     global _device
     _device = device
 
 @contextmanager
 def DeviceContext(device: torch.device):
+    """
+    Context manager for temporarily changing device.
+    
+    Usage:
+        with DeviceContext(torch.device("cpu")):
+            # Operations on CPU
+    """
     global _device
     previous_device = _device
     _device = device
