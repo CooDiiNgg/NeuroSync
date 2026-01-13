@@ -1,9 +1,15 @@
+"""
+Timing utilities for NeuroSync.
+"""
+
 import time
 from functools import wraps
 from typing import Callable, Optional
 from contextlib import contextmanager
 
 class Timer:
+    """A simple timer class for measuring elapsed time."""
+
     def __init__(self, name: Optional[str] = None):
         self.name = name
         self.start_time: Optional[float] = None
@@ -31,6 +37,7 @@ class Timer:
 
 
 def timed(func: Callable) -> Callable:
+    """Decorator to time function execution."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         timer = Timer(name=func.__name__).start()
@@ -42,6 +49,7 @@ def timed(func: Callable) -> Callable:
 
 @contextmanager
 def timing_context(name: Optional[str] = None):
+    """Context manager for timing a code block."""
     timer = Timer(name=name).start()
     try:
         yield timer
