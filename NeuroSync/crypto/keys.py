@@ -1,3 +1,7 @@
+"""
+Key management for cryptographic operations in NeuroSync.
+"""
+
 import torch
 import numpy as np
 from typing import Optional, Tuple
@@ -6,6 +10,12 @@ from NeuroSync.encoding.constants import KEY_SIZE, BITS_PER_CHAR
 from NeuroSync.utils.device import get_device
 
 class KeyManager:
+    """
+    Manages cryptographic keys for NeuroSync.
+
+    Handles key generation, storage, loading, and conversion to tensors.
+    """
+
     def __init__(
         self,
         key_size: int = KEY_SIZE,
@@ -21,11 +31,26 @@ class KeyManager:
         self._key_tensor: Optional[torch.Tensor] = None
 
     def generate(self) -> np.ndarray:
+        """
+        Generates a new random key.
+        
+        Returns:
+            Numpy array of +1/-1 values
+        """
         self._key = np.random.choice([1.0, -1.0], size=self.key_bit_length)
         self._key_tensor = None
         return self._key
     
     def to_tensor(self, batch_size: int = 1) -> torch.Tensor:
+        """
+        Gets key as a batched tensor.
+        
+        Args:
+            batch_size: Number of times to repeat key
+        
+        Returns:
+            Tensor of shape (batch_size, key_bit_length)
+        """
         if self._key is None:
             raise ValueError("Key has not been generated or loaded yet.")
         
@@ -39,20 +64,24 @@ class KeyManager:
         return self._key_tensor.unsqueeze(0).repeat(batch_size, 1)
     
     def save(self, filepath: str) -> None:
+        """Saves the key to a file."""
         if self._key is None:
             raise ValueError("Key has not been generated or loaded yet.")
         np.save(filepath, self._key)
 
     def load(self, filepath: str) -> np.ndarray:
+        """Loads the key from a file."""
         self._key = np.load(filepath)
         self._key_tensor = None
         return self._key
     
     @property
     def key(self) -> Optional[np.ndarray]:
+        """Gets the current key as a numpy array."""
         return self._key
     
     def set_key(self, key: np.ndarray) -> None:
+        """Sets the key from a numpy array."""
         if key.size != self.key_bit_length:
             raise ValueError(f"Key must be of size {self.key_bit_length}.")
         self._key = key
