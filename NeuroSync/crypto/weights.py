@@ -1,3 +1,7 @@
+"""
+Weight management for cryptographic operations in NeuroSync.
+"""
+
 import os
 import torch
 from typing import Optional, Dict, Tuple
@@ -5,6 +9,12 @@ from typing import Optional, Dict, Tuple
 from NeuroSync.utils.device import get_device
 
 class WeightManager:
+    """
+    Manages neural network weights for cryptographic operations in NeuroSync.
+
+    Handles saving, loading, serialization, and deserialization of model weights.
+    """
+
     def __init__(self, device: Optional[torch.device] = None):
         self.device = device or get_device()
         
@@ -15,6 +25,15 @@ class WeightManager:
         dirpath: str,
         prefix: str = ""
     ) -> None:
+        """
+        Saves Alice and Bob weights to a directory.
+        
+        Args:
+            alice_state: Alice network state dict
+            bob_state: Bob network state dict
+            dirpath: Directory to save to
+            prefix: Optional filename prefix
+        """
         os.makedirs(dirpath, exist_ok=True)
         alice_path = os.path.join(dirpath, f"{prefix}alice.pth")
         bob_path = os.path.join(dirpath, f"{prefix}bob.pth")
@@ -27,6 +46,16 @@ class WeightManager:
         dirpath: str,
         prefix: str = ""
     ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+        """
+        Loads Alice and Bob weights from a directory.
+
+        Args:
+            dirpath: Directory to load from
+            prefix: Optional filename prefix
+
+        Returns:
+            Tuple of (Alice state dict, Bob state dict)
+        """
         alice_path = os.path.join(dirpath, f"{prefix}alice.pth")
         bob_path = os.path.join(dirpath, f"{prefix}bob.pth")
 
@@ -39,6 +68,15 @@ class WeightManager:
         self,
         state_dict: Dict[str, torch.Tensor]
     ) -> bytes:
+        """
+        Serializes weights for network transmission.
+        
+        Args:
+            state_dict: Network state dict
+        
+        Returns:
+            Serialized bytes
+        """
         import io
         buffer = io.BytesIO()
         torch.save(state_dict, buffer)
@@ -48,6 +86,15 @@ class WeightManager:
         self,
         data: bytes
     ) -> Dict[str, torch.Tensor]:
+        """
+        Deserializes weights from network transmission.
+        
+        Args:
+            data: Serialized bytes
+        
+        Returns:
+            Network state dict
+        """
         import io
         buffer = io.BytesIO(data)
         state_dict = torch.load(buffer, map_location=self.device)
