@@ -1,8 +1,14 @@
+"""
+Logging utilities for NeuroSync.
+"""
+
 import logging
 import sys
 from typing import Optional
 
 class NeuroSyncLogger:
+    """Custom logger for NeuroSync with formatted output."""
+
     def __init__(self, name: str = "NeuroSync", level: int = logging.INFO):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(level)
@@ -39,6 +45,7 @@ class NeuroSyncLogger:
         loss: float,
         **kwargs,
     ) -> None:
+        """Logs training progress in a formatted manner."""
         msg = f"Episode {episode}/{total} | Acc: {accuracy:.1f}% | Loss: {loss:.6f}"
         for k, v in kwargs.items():
             if isinstance(v, float):
@@ -51,6 +58,7 @@ class NeuroSyncLogger:
 _logger: Optional[NeuroSyncLogger] = None
 
 def get_logger() -> NeuroSyncLogger:
+    """Returns the global NeuroSync logger instance."""
     global _logger
     if _logger is None:
         _logger = NeuroSyncLogger()
