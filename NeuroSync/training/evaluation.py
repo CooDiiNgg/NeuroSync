@@ -1,3 +1,7 @@
+"""
+Evaluation routines for NeuroSync training.
+"""
+
 import torch
 from typing import List, Tuple, Dict
 
@@ -13,6 +17,20 @@ def evaluate_accuracy(
     key_batch: torch.Tensor,
     device: torch.device,
 ) -> Tuple[int, int]:
+    """
+    Evaluates accuracy on test words.
+    
+    Args:
+        alice: Alice network
+        bob: Bob network
+        test_words: List of test words
+        key_batch: Key tensor
+        device: Compute device
+    
+    Returns:
+        Tuple of (correct_count, total_count)
+    """
+
     alice.eval()
     bob.eval()
     correct = 0
@@ -43,6 +61,18 @@ def evaluate_security(
     test_plaintexts: torch.Tensor,
     key_batch: torch.Tensor,
 ) -> Dict[str, float]:
+    """
+    Evaluates security metrics.
+    
+    Args:
+        alice: Alice network
+        test_plaintexts: Test plaintext tensor
+        key_batch: Key tensor
+    
+    Returns:
+        Dictionary of security metric values
+    """
+
     with torch.no_grad():
         ciphertexts = alice(xor(test_plaintexts, key_batch))
         ciphertexts = torch.sign(ciphertexts)
