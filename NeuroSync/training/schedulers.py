@@ -1,9 +1,25 @@
+"""
+Schedulers for adjusting loss weights and managing maintenance during NeuroSync training.
+"""
+
 from dataclasses import dataclass
 from typing import Optional
 
 
 @dataclass
 class AdversarialScheduler:
+    """
+    Schedules adversarial weight based on Bob and Eve accuracies.
+    
+    Logic:
+    - If Bob accuracy < 95%: weight = 0
+    - If Bob accuracy < 98%: decrease weight
+    - If Bob accuracy >= 98%:
+        - If Eve > 70%: increase by 0.01
+        - If Eve > 40%: increase by 0.005
+        - If Eve < 20%: decrease by 0.005 (min 0.02)
+    """
+
     max_weight: float = 0.15
     min_active_weight: float = 0.02
     increase_rate_high: float = 0.01
@@ -24,6 +40,19 @@ class AdversarialScheduler:
         running_eve_accuracy: float,
         maintenance_mode: bool = False,
     ) -> float:
+        """
+        Computes next adversarial weight.
+        
+        Args:
+            current_weight: Current adversarial weight
+            running_bob_accuracy: Bob's running accuracy (%)
+            running_eve_accuracy: Eve's running accuracy (%)
+            maintenance_mode: Whether in maintenance mode
+        
+        Returns:
+            Updated adversarial weight
+        """
+
         if maintenance_mode:
             return current_weight
         
@@ -42,7 +71,18 @@ class AdversarialScheduler:
 
 
 @dataclass
-class SecurityScheduler:  
+class SecurityScheduler:
+    """
+    Schedules security weight based on Bob accuracy and security score.
+    
+    Logic:
+    - If Bob accuracy < 95%: weight = 0
+    - If Bob accuracy < 98%: decrease weight
+    - If Bob accuracy >= 98%:
+        - If security > 0.3: increase weight
+        - If security < 0.1: decrease weight
+    """
+
     max_weight: float = 0.1
     increase_rate: float = 0.01
     decrease_rate: float = 0.005
@@ -60,6 +100,19 @@ class SecurityScheduler:
         running_security: float,
         maintenance_mode: bool = False,
     ) -> float:
+        """
+        Computes next security weight.
+        
+        Args:
+            current_weight: Current security weight
+            running_bob_accuracy: Bob's running accuracy (%)
+            running_security: Running security score
+            maintenance_mode: Whether in maintenance mode
+        
+        Returns:
+            Updated security weight
+        """
+
         if maintenance_mode:
             return current_weight
         
@@ -77,11 +130,30 @@ class SecurityScheduler:
 
 @dataclass
 class ConfidenceScheduler:
+    """
+    Schedules confidence weight based on bit-level accuracy.
+    
+    Logic:
+    - If bit accuracy < 90%: weight = 0
+    - If bit accuracy < 97%: linear ramp from 0 to max
+    - If bit accuracy >= 97%: weight = max
+    """
+
     max_weight: float = 0.3
     low_threshold: float = 90.0
     high_threshold: float = 97.0
     
     def step(self, bit_accuracy: float) -> float:
+        """
+        Computes confidence weight based on bit accuracy.
+        
+        Args:
+            bit_accuracy: Bit-level accuracy (%)
+        
+        Returns:
+            Confidence weight
+        """
+
         if bit_accuracy < self.low_threshold:
             return 0.0
         elif bit_accuracy < self.high_threshold:
@@ -92,6 +164,14 @@ class ConfidenceScheduler:
 
 
 class MaintenanceModeController:
+    """
+    Controls entering and exiting maintenance mode.
+    
+    Logic:
+    - Enter: Bob accuracy >= threshold for N consecutive intervals
+    - Exit: Bob accuracy < exit_threshold OR security alert
+    """
+
     def __init__(
         self,
         enter_threshold: float = 99.0,
@@ -119,6 +199,18 @@ class MaintenanceModeController:
         running_eve_accuracy: float,
         running_security: float,
     ) -> tuple:
+        """
+        Checks and updates maintenance mode status.
+        
+        Args:
+            running_bob_accuracy: Bob's running accuracy (%)
+            running_eve_accuracy: Eve's running accuracy (%)
+            running_security: Running security score
+        
+        Returns:
+            Tuple of (entered, exited, reason)
+        """
+
         entered = False
         exited = False
         reason = ""
@@ -148,11 +240,20 @@ class MaintenanceModeController:
         return entered, exited, reason
     
     def reset(self) -> None:
+        """Resets the maintenance mode controller."""
         self._consecutive_count = 0
         self._in_maintenance = False
 
 
 class LossScheduler:
+    """
+    Schedules loss function selection based on training progress.
+    
+    Logic:
+    - Bob: Use SmoothL1 if plateau_count >= 10 and accuracy < 90%
+    - Eve: Use SmoothL1 if Eve accuracy < 30%
+    """
+
     def __init__(
         self,
         plateau_threshold: int = 10,
@@ -168,10 +269,14 @@ class LossScheduler:
         plateau_count: int,
         recent_accuracy: float,
     ) -> bool:
+        """Checks if SmoothL1 should be used for Bob."""
+
         return plateau_count >= self.plateau_threshold and recent_accuracy < self.bob_accuracy_threshold
     
     def should_use_smooth_l1_eve(
         self,
         running_eve_accuracy: float,
     ) -> bool:
+        """Checks if SmoothL1 should be used for Eve."""
+        
         return running_eve_accuracy < self.eve_accuracy_threshold
