@@ -1,9 +1,19 @@
+"""
+Training configuration for NeuroSync.
+"""
+
 from dataclasses import dataclass, field
 from typing import Optional
 
 
 @dataclass
 class TrainingConfig:
+    """
+    Configuration parameters for NeuroSync training.
+
+    Captures all hyperparameters and settings.
+    """
+
     message_length: int = 16
     key_size: int = 16
     
@@ -52,13 +62,16 @@ class TrainingConfig:
     
     @property
     def bit_length(self) -> int:
+        """Gets the message length in bits."""
         return self.message_length * 6
     
     @property
     def key_bit_length(self) -> int:
+        """Gets the key size in bits."""
         return self.key_size * 6
     
     def to_dict(self) -> dict:
+        """Gets a dictionary representation of the config."""
         return {
             k: v for k, v in self.__dict__.items()
             if not k.startswith("_")
@@ -66,4 +79,5 @@ class TrainingConfig:
     
     @classmethod
     def from_dict(cls, d: dict) -> "TrainingConfig":
+        """Creates a TrainingConfig from a dictionary."""
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
