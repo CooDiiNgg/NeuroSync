@@ -1,3 +1,7 @@
+"""
+The complete training pipeline for NeuroSync.
+"""
+
 import os
 import torch
 import torch.nn as nn
@@ -38,6 +42,7 @@ from NeuroSync.utils.io import save_checkpoint, load_checkpoint, ensure_dir
 
 @dataclass
 class TrainingResult:
+    """Results of a completed training session."""
     alice: Alice
     bob: Bob
     eve: Eve
@@ -46,6 +51,7 @@ class TrainingResult:
     config: TrainingConfig
     
     def save(self, dirpath: str) -> None:
+        """Saves the trained models to the specified directory."""
         ensure_dir(dirpath)
         self.alice.save(os.path.join(dirpath, "alice.pth"))
         self.bob.save(os.path.join(dirpath, "bob.pth"))
@@ -53,6 +59,19 @@ class TrainingResult:
 
 
 class NeuroSyncTrainer:
+    """
+    Main trainer for NeuroSync neural cryptography system.
+    
+    This class encapsulates the complete training loop from the POC,
+    using library helper modules for cleaner, more maintainable code.
+    
+    Usage:
+        config = TrainingConfig()
+        trainer = NeuroSyncTrainer(config)
+        result = trainer.train()
+        result.save("./trained_models/")
+    """
+
     def __init__(self, config: Optional[TrainingConfig] = None):
         self.config = config or TrainingConfig()
         self.device = get_device()
@@ -96,6 +115,8 @@ class NeuroSyncTrainer:
         self.smooth_l1_criterion = nn.SmoothL1Loss()
     
     def _init_networks(self) -> None:
+        """Initializes Alice, Bob, and Eve networks."""
+
         bit_length = self.config.bit_length
         hidden_size = self.config.hidden_size
         
@@ -108,6 +129,8 @@ class NeuroSyncTrainer:
         self.logger.info(f"  Hidden size: {hidden_size}")
     
     def _init_optimizers(self) -> None:
+        """Initializes optimizers and learning rate schedulers."""
+
         cfg = self.config
         
         alice_bob_params = list(self.alice.parameters()) + list(self.bob.parameters())
@@ -138,6 +161,8 @@ class NeuroSyncTrainer:
         )
     
     def _load_checkpoints(self, checkpoint_dir: str) -> bool:
+        """Loads saved models and training state from the specified directory."""
+
         alice_path = os.path.join(checkpoint_dir, 'alice_test.pth')
         bob_path = os.path.join(checkpoint_dir, 'bob_test.pth')
         eve_path = os.path.join(checkpoint_dir, 'eve_test.pth')
@@ -178,6 +203,8 @@ class NeuroSyncTrainer:
         return loaded
     
     def _save_checkpoints(self, checkpoint_dir: str) -> None:
+        """Saves models and training state to the specified directory."""
+
         ensure_dir(checkpoint_dir)
         
         self.alice.save(os.path.join(checkpoint_dir, 'alice_test.pth'))
@@ -197,6 +224,8 @@ class NeuroSyncTrainer:
         )
     
     def _get_loss_criterion(self, use_smooth_l1: bool):
+        """Returns the appropriate loss criterion based on the flag."""
+
         return self.smooth_l1_criterion if use_smooth_l1 else self.mse_criterion
     
     def _train_alice_bob_batch(
@@ -205,6 +234,8 @@ class NeuroSyncTrainer:
         key_batch: torch.Tensor,
         eve_key_batch: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
+        """Trains Alice and Bob for one batch and returns relevant outputs and loss."""
+
         cfg = self.config
         state = self.state
         
@@ -269,6 +300,8 @@ class NeuroSyncTrainer:
         plain_bits_batch: torch.Tensor,
         eve_key_batch: torch.Tensor,
     ) -> None:
+        """Trains Eve for one batch."""
+
         state = self.state
         
         self.eve.train()
@@ -300,6 +333,8 @@ class NeuroSyncTrainer:
         eve_output: torch.Tensor,
         plain_bits_batch: torch.Tensor,
     ) -> None:
+        """Updates training state counters based on the latest batch results."""
+
         state = self.state
         
         with torch.no_grad():
@@ -320,6 +355,8 @@ class NeuroSyncTrainer:
             state.total_bits += bit_matches.numel()
     
     def _update_schedulers(self, episode: int, recent_accuracy: float) -> None:
+        """Updates all training schedulers based on the latest accuracy metrics."""
+
         state = self.state
         
         eve_accuracy = (100 * state.eve_guess_count / state.total_count) if state.total_count > 0 else 0.0
@@ -385,6 +422,8 @@ class NeuroSyncTrainer:
         eve_output: torch.Tensor,
         key: torch.Tensor,
     ) -> None:
+        """Logs training progress to the console."""
+
         state = self.state
         cfg = self.config
         
@@ -412,6 +451,7 @@ class NeuroSyncTrainer:
         print(f"    Eve Accuracy: {eve_accuracy:.1f}%")
     
     def _run_test_evaluation(self, key: torch.Tensor, key_batch: torch.Tensor) -> None:
+        """Runs test evaluations on standard words and security checks."""
         cfg = self.config
         thresholds = SecurityThresholds()
         
@@ -451,6 +491,7 @@ class NeuroSyncTrainer:
             print(f"    {name.title()}: {val:.4f} [{status.value.upper()}]")
     
     def _run_final_test(self, key: torch.Tensor, key_batch: torch.Tensor) -> int:
+        """Runs the final test evaluation after training is complete."""
         cfg = self.config
         
         print("=" * 70)
@@ -522,6 +563,15 @@ class NeuroSyncTrainer:
         return correct
     
     def train(self, load: bool = False) -> TrainingResult:
+        """
+        Main training loop for NeuroSync.
+
+        Args:
+            load (bool): Whether to load existing checkpoints.
+
+        Returns:
+            TrainingResult: The result of the training session.
+        """
         cfg = self.config
         state = self.state
         
