@@ -1,6 +1,16 @@
+"""
+Flags for packet types and control messages in NeuroSync protocol.
+"""
+
 from enum import IntFlag
 
 class PacketFlags(IntFlag):
+    """
+    Flags for packet types and control messages.
+    
+    Can be combined: FINAL | KEY_CHANGE
+    """
+    
     NORMAL = 0x00
     KEY_CHANGE = 0x01
     WEIGHT_CHANGE = 0x02
