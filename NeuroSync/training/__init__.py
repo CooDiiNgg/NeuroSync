@@ -1,3 +1,7 @@
+"""
+NeuroSync Training Module
+"""
+
 from NeuroSync.training.config import TrainingConfig
 from NeuroSync.training.trainer import NeuroSyncTrainer, TrainingResult
 from NeuroSync.training.state import TrainingState
