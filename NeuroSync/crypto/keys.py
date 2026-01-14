@@ -86,3 +86,25 @@ class KeyManager:
             raise ValueError(f"Key must be of size {self.key_bit_length}.")
         self._key = key
         self._key_tensor = None
+
+    def to_bytes(self) -> bytes:
+        """Converts the key to bytes."""
+        if self._key is None:
+            raise ValueError("Key has not been generated or loaded yet.")
+        return self._key.astype(np.float32).tobytes()
+    
+    def load_from_bytes(self, data: bytes) -> np.ndarray:
+        """Loads the key from bytes."""
+        key_array = np.frombuffer(data, dtype=np.float32).copy()
+        if key_array.size != self.key_bit_length:
+            raise ValueError(f"Key must be of size {self.key_bit_length}.")
+        self._key = key_array
+        self._key_tensor = None
+        return self._key
+    
+    def set_from_tensor(self, tensor: torch.Tensor) -> None:
+        """Sets the key from a tensor."""
+        if tensor.numel() != self.key_bit_length:
+            raise ValueError(f"Key tensor must have {self.key_bit_length} elements.")
+        self._key = tensor.detach().cpu().numpy()
+        self._key_tensor = None
