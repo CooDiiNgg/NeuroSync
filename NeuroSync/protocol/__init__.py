@@ -1,3 +1,7 @@
+"""
+NeuroSync protocol package.
+"""
+
 from NeuroSync.protocol.packet import Packet
 from NeuroSync.protocol.header import PacketHeader
 from NeuroSync.protocol.flags import PacketFlags
