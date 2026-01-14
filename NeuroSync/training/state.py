@@ -1,3 +1,7 @@
+"""
+Training state management for NeuroSync.
+"""
+
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List
 import torch
@@ -5,6 +9,12 @@ import torch
 
 @dataclass
 class TrainingState:
+    """
+    Tracks all state during training.
+    
+    Captures running metrics, best checkpoints, and training phase.
+    """
+
     running_bob_accuracy: float = 0.0
     running_eve_accuracy: float = 0.0
     running_security: float = 0.0
@@ -34,6 +44,8 @@ class TrainingState:
     security_weight: float = 0.0
     
     def update_accuracy(self, bob_acc: float, eve_acc: float) -> None:
+        """Updates the running accuracies using momentum."""
+
         self.running_bob_accuracy = (
             self.accuracy_momentum * self.running_bob_accuracy +
             (1 - self.accuracy_momentum) * bob_acc
@@ -49,6 +61,8 @@ class TrainingState:
         alice_state: Dict[str, torch.Tensor],
         bob_state: Dict[str, torch.Tensor],
     ) -> bool:
+        """Updates the best model states if accuracy improved."""
+
         if accuracy > self.best_accuracy:
             self.best_accuracy = accuracy
             self.best_alice_state = {k: v.clone() for k, v in alice_state.items()}
@@ -59,6 +73,8 @@ class TrainingState:
         return False
     
     def reset_counters(self) -> None:
+        """Resets training counters."""
+
         self.perfect_count = 0
         self.total_count = 0
         self.eve_guess_count = 0
@@ -66,6 +82,8 @@ class TrainingState:
         self.total_bits = 0
     
     def get_recent_bob_error(self, n: int = 100) -> float:
+        """Calculates the average of the most recent Bob errors."""
+        
         if not self.bob_errors:
             return 0.0
         recent = self.bob_errors[-n:]
