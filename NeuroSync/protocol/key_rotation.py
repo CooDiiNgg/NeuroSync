@@ -1,3 +1,7 @@
+"""
+Manages key rotation protocol for NeuroSync.
+"""
+
 from typing import Optional, Callable
 import torch
 import numpy as np
@@ -8,6 +12,12 @@ from NeuroSync.protocol.packet import Packet
 
 
 class KeyRotationManager:
+    """
+    Manages automatic key rotation.
+    
+    Schedules key changes and handles the key exchange protocol.
+    """
+
     def __init__(
         self,
         key_manager: KeyManager,
@@ -20,12 +30,23 @@ class KeyRotationManager:
         self.waiting_for_ack = False
     
     def should_rotate(self) -> bool:
+        """Checks if it's time to rotate the key."""
         return (
             self.packets_since_rotation >= self.rotation_interval
             and not self.waiting_for_ack
         )
     
     def initiate_rotation(self, encrypt_fn: Callable) -> Packet:
+        """
+        Starts key rotation by generating new key and creating packet.
+        
+        Args:
+            encrypt_fn: Function to encrypt tensor -> tensor
+        
+        Returns:
+            Packet containing encrypted new key
+        """
+
         self.pending_key = np.random.choice([-1.0, 1.0], self.key_manager.key_bit_length).astype(np.float32)
         
         key_tensor = torch.tensor(self.pending_key, dtype=torch.float32)
@@ -45,6 +66,7 @@ class KeyRotationManager:
         )
     
     def handle_ack(self) -> None:
+        """Handles acknowledgment of key rotation."""
         if self.pending_key is not None and self.waiting_for_ack:
             self.key_manager.set_key(self.pending_key)
             self.pending_key = None
@@ -52,6 +74,18 @@ class KeyRotationManager:
             self.packets_since_rotation = 0
     
     def receive_new_key(self, encrypted_key: bytes, decrypt_fn: Callable, device: torch.device) -> np.ndarray:
+        """
+        Receives and decrypts a new key from sender.
+        
+        Args:
+            encrypted_key: Encrypted key bytes (from packet payload)
+            decrypt_fn: Function to decrypt tensor -> tensor
+            device: Device to perform decryption on
+        
+        Returns:
+            Decrypted new key
+        """
+
         encrypted_array = np.frombuffer(encrypted_key, dtype=np.float32)
         key_tensor = torch.tensor(encrypted_array, dtype=torch.float32, device=device)
         
@@ -69,4 +103,5 @@ class KeyRotationManager:
         return new_key
     
     def tick(self) -> None:
+        """Increments packet counter."""
         self.packets_since_rotation += 1
