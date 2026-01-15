@@ -1,3 +1,7 @@
+"""
+NeuroSync main cipher interface.
+"""
+
 from typing import Optional, Union, List
 from pathlib import Path
 import torch
@@ -11,6 +15,28 @@ from NeuroSync.utils.device import get_device
 
 
 class NeuroSync:
+    """
+    High-level interface for NeuroSync encryption.
+    
+    Provides simple encrypt/decrypt operations and access to
+    full protocol features through sender/receiver creation.
+    
+    Usage:
+        # From pretrained weights
+        cipher = NeuroSync.from_pretrained("./weights/")
+        
+        # Or train new
+        cipher = NeuroSync.train_new()
+        
+        # Simple usage
+        encrypted = cipher.encrypt("Hello!")
+        decrypted = cipher.decrypt(encrypted)
+        
+        # Full protocol
+        sender = cipher.create_sender()
+        receiver = cipher.create_receiver()
+    """
+
     def __init__(
         self,
         alice: Alice,
@@ -36,6 +62,17 @@ class NeuroSync:
         dirpath: str,
         device: Optional[torch.device] = None,
     ) -> "NeuroSync":
+        """
+        Loads NeuroSync from pretrained weights.
+        
+        Args:
+            dirpath: Directory containing alice.pth and bob.pth
+            device: Compute device
+        
+        Returns:
+            NeuroSync instance
+        """
+
         from NeuroSync.encoding.constants import BIT_LENGTH
         
         device = device or get_device()
@@ -62,6 +99,17 @@ class NeuroSync:
         config: Optional[TrainingConfig] = None,
         device: Optional[torch.device] = None,
     ) -> "NeuroSync":
+        """
+        Train a new NeuroSync system.
+        
+        Args:
+            config: Training configuration
+            device: Compute device
+        
+        Returns:
+            NeuroSync instance with trained networks
+        """
+
         config = config or TrainingConfig()
         trainer = NeuroSyncTrainer(config)
         result = trainer.train()
@@ -72,20 +120,41 @@ class NeuroSync:
         return cls(result.alice, result.bob, key_manager, device)
     
     def encrypt(self, plaintext: str) -> torch.Tensor:
+        """
+        Encrypts a plaintext string.
+        
+        Args:
+            plaintext: The input string to encrypt
+        
+        Returns:
+            Encrypted tensor
+        """
         return self.session.encrypt(plaintext)
     
     def decrypt(self, ciphertext: torch.Tensor) -> str:
+        """
+        Decrypts an encrypted tensor.
+        
+        Args:
+            ciphertext: The encrypted tensor
+        
+        Returns:
+            Decrypted string
+        """
         return self.session.decrypt(ciphertext)
     
     def create_sender(self):
+        """Creates a Sender instance."""
         from NeuroSync.interface.sender import Sender
         return Sender(self.session)
     
     def create_receiver(self):
+        """Creates a Receiver instance."""
         from NeuroSync.interface.receiver import Receiver
         return Receiver(self.session)
     
     def save(self, dirpath: str) -> None:
+        """Saves the NeuroSync instance to disk."""
         dirpath = Path(dirpath)
         dirpath.mkdir(parents=True, exist_ok=True)
         
