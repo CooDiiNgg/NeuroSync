@@ -1,3 +1,7 @@
+"""
+Sender interface for NeuroCypher protocol.
+"""
+
 from typing import List, Optional
 import torch
 
@@ -10,6 +14,13 @@ from NeuroSync.encoding.constants import MESSAGE_LENGTH, BIT_LENGTH
 
 
 class Sender:
+    """
+    Sender for NeuroCypher protocol.
+    
+    Handles message chunking, encryption, packetization, and
+    key rotation initiation.
+    """
+
     def __init__(
         self,
         session: CryptoSession,
@@ -25,6 +36,18 @@ class Sender:
         self.sequence_counter = 0
     
     def send(self, message: str) -> List[Packet]:
+        """
+        Prepares message for transmission.
+        
+        Chunks message, encrypts each chunk, and creates packets.
+        
+        Args:
+            message: Message to send
+        
+        Returns:
+            List of packets to transmit
+        """
+
         chunks = self._chunk_message(message)
         packets = []
         
@@ -37,6 +60,7 @@ class Sender:
         return packets
     
     def _chunk_message(self, message: str) -> List[str]:
+        """Chunks message into fixed-size pieces."""
         chunks = []
         while message:
             chunk = message[:MESSAGE_LENGTH]
@@ -46,6 +70,7 @@ class Sender:
         return chunks
     
     def _create_packet(self, chunk: str, is_final: bool) -> Packet:
+        """Creates a packet from a message chunk."""
         ciphertext = self.session.encrypt(chunk)
         payload = ciphertext.cpu().numpy().tobytes()
         
@@ -71,6 +96,7 @@ class Sender:
         return packet
     
     def check_key_rotation(self) -> Optional[Packet]:
+        """Checks if key rotation is needed and initiates it."""
         if self.key_rotation.should_rotate():
             return self.key_rotation.initiate_rotation(
                 lambda k: self.session.encrypt_tensor(k)
@@ -78,6 +104,7 @@ class Sender:
         return None
     
     def handle_ack(self, packet: Packet) -> None:
+        """Handles acknowledgment packets."""
         if packet.header.flags.has(PacketFlags.ACK):
             if packet.header.flags.has(PacketFlags.KEY_CHANGE):
                 self.key_rotation.handle_ack()
