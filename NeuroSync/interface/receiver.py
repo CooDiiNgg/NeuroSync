@@ -1,3 +1,7 @@
+"""
+Receiver interface for NeuroCypher protocol.
+"""
+
 from typing import Optional, List
 import torch
 import numpy as np
@@ -13,6 +17,13 @@ from NeuroSync.encoding.codec import bits_to_text
 
 
 class Receiver:
+    """
+    Receiver for NeuroCypher protocol.
+    
+    Handles packet reception, error correction, reassembly, and
+    key rotation responses.
+    """
+
     def __init__(
         self,
         session: CryptoSession,
@@ -28,6 +39,16 @@ class Receiver:
         self._pending_acks: List[Packet] = []
     
     def receive(self, packet: Packet) -> Optional[str]:
+        """
+        Receives and processes a packet.
+        
+        Args:
+            packet: Received packet
+        
+        Returns:
+            Complete decrypted message if ready, None otherwise
+        """
+
         if not packet.verify_checksum():
             self._pending_acks.append(self._create_retransmit_request(packet))
             return None
@@ -62,6 +83,7 @@ class Receiver:
         return None
     
     def _decrypt_payload(self, packet: Packet) -> str:
+        """Decrypts the payload of a packet."""
         ciphertext = np.frombuffer(packet.payload, dtype=np.float32)
         
         if self.parity and packet.parity:
@@ -79,6 +101,7 @@ class Receiver:
         return plaintext
     
     def _handle_key_change(self, packet: Packet) -> None:
+        """Handles key change packets."""
         _ = self.key_rotation.receive_new_key(
             encrypted_key=packet.payload,
             decrypt_fn=lambda k: self.session.decrypt_tensor(k),
@@ -86,6 +109,7 @@ class Receiver:
         )
     
     def _create_retransmit_request(self, packet: Packet) -> Packet:
+        """Creates a retransmit request packet."""
         return Packet.create(
             sequence_id=packet.header.sequence_id,
             payload=b"",
@@ -93,6 +117,7 @@ class Receiver:
         )
     
     def create_ack(self, packet: Packet) -> Packet:
+        """Creates an acknowledgment packet."""
         preserve_flags = packet.header.flags & (
             PacketFlags.KEY_CHANGE | PacketFlags.WEIGHT_CHANGE | PacketFlags.SYNC
         )
@@ -103,16 +128,20 @@ class Receiver:
         )
     
     def get_pending_acks(self) -> List[Packet]:
+        """Retrieves and clears pending acknowledgment packets."""
         acks = self._pending_acks
         self._pending_acks = []
         return acks
     
     def has_pending_data(self) -> bool:
+        """Checks if there is pending data to be processed."""
         return self.assembler.has_pending_data()
     
     def get_missing_sequences(self) -> List[int]:
+        """Gets list of missing packet sequence IDs."""
         return self.assembler.get_missing_sequences()
     
     def reset(self) -> None:
+        """Resets the receiver state."""
         self.assembler.reset()
         self._pending_acks.clear()
