@@ -1,0 +1,89 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neurosync"
+dynamic = ["version"]
+description = "Neural cryptography library with adversarial training for secure communication"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [
+    {name = "Nikolay Valkanov", email = "niki@valkanovi.com"}
+]
+keywords = ["cryptography", "neural-networks", "pytorch", "security", "encryption"]
+dependencies = [
+    "torch>=2.8.0",
+    "numpy>=2.0.0",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+    "mkdocstrings[python]>=0.24.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/CooDiiNgg/NeuroSync"
+Documentation = "https://neurosync.readthedocs.io"
+Repository = "https://github.com/CooDiiNgg/NeuroSync"
+Issues = "https://github.com/CooDiiNgg/NeuroSync/issues"
+
+[project.scripts]
+neurosync-train = "neurosync.scripts.train:main"
+neurosync-encrypt = "neurosync.scripts.encrypt:main"
+neurosync-decrypt = "neurosync.scripts.decrypt:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "neurosync.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["neurosync*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short --cov=neurosync --cov-report=term-missing"
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311", "py312", "py313"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "W", "I", "N", "D", "UP", "B", "C4"]
+ignore = ["D100", "D104"]
+
+[tool.mypy]
+python_version = 3.9
+warn_return_any = true
+warn_unused_ignores = true
