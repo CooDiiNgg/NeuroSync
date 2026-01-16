@@ -59,7 +59,7 @@ NeuroSync-encrypt = "NeuroSync.scripts.encrypt:main"
 NeuroSync-decrypt = "NeuroSync.scripts.decrypt:main"
 
 [tool.setuptools.dynamic]
-version = {attr = "NeuroSync.__version__"}
+version = {attr = "NeuroSync.version.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["."]
