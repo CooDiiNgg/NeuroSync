@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "neurosync"
+name = "NeuroSync"
 dynamic = ["version"]
 description = "Neural cryptography library with adversarial training for secure communication"
 readme = "README.md"
@@ -49,26 +49,26 @@ docs = [
 
 [project.urls]
 Homepage = "https://github.com/CooDiiNgg/NeuroSync"
-Documentation = "https://neurosync.readthedocs.io"
+Documentation = "https://NeuroSync.readthedocs.io"
 Repository = "https://github.com/CooDiiNgg/NeuroSync"
 Issues = "https://github.com/CooDiiNgg/NeuroSync/issues"
 
 [project.scripts]
-neurosync-train = "neurosync.scripts.train:main"
-neurosync-encrypt = "neurosync.scripts.encrypt:main"
-neurosync-decrypt = "neurosync.scripts.decrypt:main"
+NeuroSync-train = "NeuroSync.scripts.train:main"
+NeuroSync-encrypt = "NeuroSync.scripts.encrypt:main"
+NeuroSync-decrypt = "NeuroSync.scripts.decrypt:main"
 
 [tool.setuptools.dynamic]
-version = {attr = "neurosync.__version__"}
+version = {attr = "NeuroSync.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["neurosync*"]
+include = ["NeuroSync*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v --tb=short --cov=neurosync --cov-report=term-missing"
+addopts = "-v --tb=short --cov=NeuroSync --cov-report=term-missing"
 
 [tool.black]
 line-length = 100
