@@ -37,7 +37,7 @@ Through adversarial training, Alice and Bob learn encryption schemes that Eve ca
 ### From PyPI
 
 ```bash
-pip install neurosync
+pip install NeuroSync
 ```
 
 ### From Source
@@ -61,7 +61,7 @@ pip install -e ".[dev]"
 NeuroSync automatically detects and uses CUDA when available. For CPU-only installation:
 
 ```bash
-pip install neurosync
+pip install NeuroSync
 # PyTorch will use CPU if no CUDA is available
 ```
 
@@ -586,7 +586,7 @@ If you use NeuroSync in your research, please cite - it brings me great joy!
 ## Links
 
 - [GitHub Repository](https://github.com/CooDiiNgg/NeuroSync)
-- [Documentation](https://neurosync.readthedocs.io)
+- [Documentation](https://NeuroSync.readthedocs.io)
 - [Issue Tracker](https://github.com/CooDiiNgg/NeuroSync/issues)
 
 ## Contact
