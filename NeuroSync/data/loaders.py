@@ -64,7 +64,7 @@ def load_word_list(
 def create_word_list(
         filepath: str,
         message_length: int = MESSAGE_LENGTH,
-        num_words: int = 1_000_000_000
+        num_words: int = 1_000_000
 ) -> List[str]:
     """
     Creates a word list file with random alphanumeric words and loads it.

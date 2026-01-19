@@ -59,6 +59,7 @@ class TrainingConfig:
     data_dir: str = "./data"
     checkpoint_dir: str = "./checkpoints"
     word_list_file: str = "words.txt"
+    word_list_size: int = 1_000_000
     
     @property
     def bit_length(self) -> int:

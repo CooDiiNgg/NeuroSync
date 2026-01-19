@@ -581,12 +581,15 @@ class NeuroSyncTrainer:
         
         word_list_path = os.path.join(cfg.data_dir, cfg.word_list_file)
         if not os.path.exists(word_list_path):
-            self.message_generator.generate_word_list(
+            self.message_generator.create_word_list(
                 word_list_path,
-                num_words=cfg.word_list_size,
+                message_length=cfg.message_length,
+                num_words=cfg.word_list_size
             )
             print(f"Generated word list at '{word_list_path}'")
-        self.message_generator.load_words(word_list_path)
+        
+        if self.message_generator.word_list == []:
+            self.message_generator.load_words(word_list_path)
         self.logger.info(f"Loaded {len(self.message_generator.word_list)} words")
         
         self._init_networks()
