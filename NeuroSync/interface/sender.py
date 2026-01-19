@@ -35,7 +35,7 @@ class Sender:
         )
         self.sequence_counter = 0
     
-    def send(self, message: str) -> List[Packet]:
+    def send(self, message: str) -> List[bytes]:
         """
         Prepares message for transmission.
         
@@ -45,7 +45,7 @@ class Sender:
             message: Message to send
         
         Returns:
-            List of packets to transmit
+            List of packets encoded to bytes to transmit
         """
 
         chunks = self._chunk_message(message)
@@ -54,6 +54,7 @@ class Sender:
         for i, chunk in enumerate(chunks):
             is_final = (i == len(chunks) - 1)
             packet = self._create_packet(chunk, is_final)
+            packet = packet.to_bytes()
             packets.append(packet)
             self.key_rotation.tick()
         

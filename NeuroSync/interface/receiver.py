@@ -36,18 +36,20 @@ class Receiver:
             session.key_manager,
         )
         
-        self._pending_acks: List[Packet] = []
+        self._pending_acks: List[bytes] = []
     
-    def receive(self, packet: Packet) -> Optional[str]:
+    def receive(self, packet: bytes) -> Optional[str]:
         """
         Receives and processes a packet.
         
         Args:
-            packet: Received packet
+            packet: Received packet in bytes
         
         Returns:
             Complete decrypted message if ready, None otherwise
         """
+
+        packet = Packet.from_bytes(packet)
 
         if not packet.verify_checksum():
             self._pending_acks.append(self._create_retransmit_request(packet))
@@ -108,15 +110,15 @@ class Receiver:
             device=self.session.device,
         )
     
-    def _create_retransmit_request(self, packet: Packet) -> Packet:
+    def _create_retransmit_request(self, packet: Packet) -> bytes:
         """Creates a retransmit request packet."""
         return Packet.create(
             sequence_id=packet.header.sequence_id,
             payload=b"",
             flags=PacketFlags.RETRANSMIT,
-        )
+        ).to_bytes()
     
-    def create_ack(self, packet: Packet) -> Packet:
+    def create_ack(self, packet: Packet) -> bytes:
         """Creates an acknowledgment packet."""
         preserve_flags = packet.header.flags & (
             PacketFlags.KEY_CHANGE | PacketFlags.WEIGHT_CHANGE | PacketFlags.SYNC
@@ -125,9 +127,9 @@ class Receiver:
             sequence_id=packet.header.sequence_id,
             payload=b"",
             flags=PacketFlags.ACK | preserve_flags,
-        )
+        ).to_bytes()
     
-    def get_pending_acks(self) -> List[Packet]:
+    def get_pending_acks(self) -> List[bytes]:
         """Retrieves and clears pending acknowledgment packets."""
         acks = self._pending_acks
         self._pending_acks = []
