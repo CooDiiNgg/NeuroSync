@@ -92,6 +92,8 @@ class Sender:
             flags=flags,
             parity=parity,
         )
+
+        packet.calculate_plain_hash(chunk.astype(np.float32).tobytes())
         
         self.sequence_counter += 1
         return packet

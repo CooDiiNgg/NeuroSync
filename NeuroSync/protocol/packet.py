@@ -42,6 +42,26 @@ class Packet:
         expected = self.header.compute_checksum(self.payload)
         return self.header.checksum == expected
     
+    def calculate_plain_hash(self, plaintext: bytes) -> None:
+        """Calculates and sets the plain hash for the packet."""
+        self.header.plain_hash = self.header.compute_plain_hash(plaintext)
+    
+    def resolve_plain_hash(self, plaintext: bytes) -> bytes:
+        """Verifies and returns the plaintext if hash matches - else it corrects it if possible."""
+        expected_hash = self.header.compute_plain_hash(plaintext)
+        if self.header.plain_hash == expected_hash:
+            return plaintext
+        else:
+            import numpy as np
+            bits = np.frombuffer(plaintext, dtype=np.float32)
+            for i in range(len(bits)):
+                original = bits[i]
+                bits[i] = -original
+                if self.header.compute_plain_hash(bits.tobytes()) == self.header.plain_hash:
+                    return bits.tobytes()
+                bits[i] = original
+            return plaintext
+    
     @classmethod
     def create(
         cls,

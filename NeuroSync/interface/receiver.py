@@ -99,16 +99,38 @@ class Receiver:
             ciphertext, dtype=torch.float32, device=self.session.device
         )
         plaintext = self.session.decrypt(ciphertext_tensor)
+        plaintext_bytes = plaintext.detach().cpu().numpy().astype(np.float32).tobytes()
         
+        plaintext_bytes = packet.resolve_plain_hash(plaintext_bytes)
+        plaintext = bits_to_text(np.frombuffer(plaintext_bytes, dtype=np.float32))
         return plaintext
     
     def _handle_key_change(self, packet: Packet) -> None:
         """Handles key change packets."""
-        _ = self.key_rotation.receive_new_key(
-            encrypted_key=packet.payload,
-            decrypt_fn=lambda k: self.session.decrypt_tensor(k),
-            device=self.session.device,
+        encrypted_array = np.frombuffer(packet.payload, dtype=np.float32)
+
+        if self.parity and packet.parity:
+            parity_bits = np.frombuffer(packet.parity, dtype=np.float32)
+            encoded = np.concatenate([
+                encrypted_array,
+                parity_bits
+            ])
+            encrypted_array, error_pos = self.parity.decode(encoded)
+            if error_pos > 0:
+                pass
+        
+        encrypted_tensor = torch.tensor(
+            encrypted_array, dtype=torch.float32, device=self.session.device
         )
+
+        decrypted_tensor = self.session.decrypt_tensor(encrypted_tensor)
+        decrypted_bytes = decrypted_tensor.detach().cpu().numpy().astype(np.float32).tobytes()
+
+        decrypted_bytes = packet.resolve_plain_hash(decrypted_bytes)
+        decrypted_tensor = torch.tensor(
+            np.frombuffer(decrypted_bytes, dtype=np.float32), dtype=torch.float32, device=self.session.device
+        )
+        self.key_rotation.receive_new_key(decrypted_tensor)
     
     def _create_retransmit_request(self, packet: Packet) -> bytes:
         """Creates a retransmit request packet."""
