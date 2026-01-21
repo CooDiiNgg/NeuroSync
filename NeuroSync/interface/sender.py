@@ -12,6 +12,8 @@ from NeuroSync.protocol.flags import PacketFlags
 from NeuroSync.protocol.error_correction import ParityMatrix
 from NeuroSync.protocol.key_rotation import KeyRotationManager
 from NeuroSync.encoding.constants import MESSAGE_LENGTH, BIT_LENGTH
+from NeuroSync.encoding.codec import bits_to_text, text_to_bits
+
 
 
 class Sender:
@@ -94,8 +96,8 @@ class Sender:
             parity=parity,
         )
 
-        plaintext = np.array(list(chunk.ljust(MESSAGE_LENGTH, "=")), dtype=np.float32).tobytes()
-        packet.calculate_plain_hash(plaintext)
+        plaintext = text_to_bits(chunk)
+        packet.calculate_plain_hash(np.array(plaintext, dtype=np.float32).tobytes())
         
         self.sequence_counter += 1
         return packet

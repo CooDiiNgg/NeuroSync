@@ -13,7 +13,7 @@ from NeuroSync.protocol.error_correction import ParityMatrix
 from NeuroSync.protocol.assembler import PacketAssembler
 from NeuroSync.protocol.key_rotation import KeyRotationManager
 from NeuroSync.encoding.constants import BIT_LENGTH, MESSAGE_LENGTH
-from NeuroSync.encoding.codec import bits_to_text
+from NeuroSync.encoding.codec import bits_to_text, text_to_bits
 
 
 class Receiver:
@@ -99,7 +99,8 @@ class Receiver:
             ciphertext, dtype=torch.float32, device=self.session.device
         )
         plaintext = self.session.decrypt(ciphertext_tensor)
-        plaintext_bytes = plaintext.detach().cpu().numpy().astype(np.float32).tobytes()
+        plaintext = text_to_bits(plaintext)
+        plaintext_bytes = np.array(plaintext, dtype=np.float32).tobytes()
         
         plaintext_bytes = packet.resolve_plain_hash(plaintext_bytes)
         plaintext = bits_to_text(np.frombuffer(plaintext_bytes, dtype=np.float32))
