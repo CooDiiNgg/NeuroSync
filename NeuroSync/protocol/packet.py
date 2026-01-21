@@ -53,7 +53,8 @@ class Packet:
             return plaintext
         else:
             import numpy as np
-            bits = np.frombuffer(plaintext, dtype=np.float32)
+            bits_read = np.frombuffer(plaintext, dtype=np.float32)
+            bits = bits_read.copy()
             for i in range(len(bits)):
                 original = bits[i]
                 bits[i] = -original
