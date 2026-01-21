@@ -4,6 +4,7 @@ Sender interface for NeuroCypher protocol.
 
 from typing import List, Optional
 import torch
+import numpy as np
 
 from NeuroSync.protocol.session import CryptoSession
 from NeuroSync.protocol.packet import Packet
@@ -93,7 +94,8 @@ class Sender:
             parity=parity,
         )
 
-        packet.calculate_plain_hash(chunk.astype(np.float32).tobytes())
+        plaintext = np.array(list(chunk.ljust(MESSAGE_LENGTH, "=")), dtype=np.float32).tobytes()
+        packet.calculate_plain_hash(plaintext)
         
         self.sequence_counter += 1
         return packet
