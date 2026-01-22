@@ -28,7 +28,7 @@ class Sender:
         self,
         session: CryptoSession,
         enable_error_correction: bool = True,
-        key_rotation_interval: int = 1000,
+        key_rotation_interval: int = 50,
     ):
         self.session = session
         self.parity = ParityMatrix(BIT_LENGTH) if enable_error_correction else None
