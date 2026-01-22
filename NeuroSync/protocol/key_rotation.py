@@ -21,7 +21,7 @@ class KeyRotationManager:
     def __init__(
         self,
         key_manager: KeyManager,
-        rotation_interval: int = 1000,
+        rotation_interval: int = 50,
     ):
         self.key_manager = key_manager
         self.rotation_interval = rotation_interval
@@ -59,11 +59,13 @@ class KeyRotationManager:
         
         self.waiting_for_ack = True
         
-        return Packet.create(
+        key_pack = Packet.create(
             sequence_id=0,
             payload=encrypted_bytes,
             flags=PacketFlags.KEY_CHANGE,
-        ).calculate_plain_hash(self.pending_key.tobytes())
+        )
+        key_pack.calculate_plain_hash(self.pending_key.tobytes())
+        return key_pack
     
     def handle_ack(self) -> None:
         """Handles acknowledgment of key rotation."""
