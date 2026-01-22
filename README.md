@@ -116,14 +116,19 @@ cipher = NeuroSync.from_pretrained("./weights/")
 sender = cipher.create_sender()
 receiver = cipher.create_receiver()
 
-# Send a message
-packets = sender.send("Hello from NeuroSync!")
+# Set a message
+msg = "Hello from NeuroSync!"
 
-# Receive and reassemble
-for packet in packets:
-    message = receiver.receive(packet)
-    if message:
-        print(f"Received: {message}")
+# Send and receive the message
+while msg:
+    packets, msg = sender.send(msg)
+    for packet in packets:
+        message = receiver.receive(packet)
+        if message:
+            print(f"Received: {message}")
+    acks = receiver.get_pending_acks()
+    for ack in acks:
+        sender.handle_ack(ack)
 ```
 
 ## Usage Examples
@@ -188,22 +193,15 @@ messages = [
 ]
 
 for msg in messages:
-    # Check if key rotation is needed
-    key_rotation_packet = sender.check_key_rotation()
-    if key_rotation_packet:
-        # Transmit key rotation packet
-        receiver.receive(key_rotation_packet)
-        # Get and handle acknowledgment
+    while msg:
+        packets, msg = sender.send(msg)
+        for packet in packets:
+            message = receiver.receive(packet)
+            if message:
+                print(f"Received: {message}")
         acks = receiver.get_pending_acks()
         for ack in acks:
             sender.handle_ack(ack)
-    
-    # Send the actual message
-    packets = sender.send(msg)
-    for packet in packets:
-        result = receiver.receive(packet)
-        if result:
-            print(f"Received: {result}")
 ```
 
 ### Working with Raw Networks
@@ -270,7 +268,7 @@ sender = cipher.create_sender()
 
 all_packets = []
 for msg in messages:
-    packets = sender.send(msg)
+    packets, _ = sender.send(msg)
     all_packets.extend(packets)
 
 print(f"Total packets: {len(all_packets)}")
@@ -339,15 +337,15 @@ class TrainingConfig:
 
 ```python
 class Sender:
-    def __init__(self, session, enable_error_correction=True, key_rotation_interval=1000)
+    def __init__(self, session, enable_error_correction=True, key_rotation_interval=50)
     
-    def send(self, message: str) -> List[Packet]
+    def send(self, message: str) -> Union[List[bytes], Optional[str]]:
         """Prepare message for transmission."""
     
-    def check_key_rotation(self) -> Optional[Packet]
+    def check_key_rotation(self) -> Optional[bytes]:
         """Check if key rotation is needed."""
     
-    def handle_ack(self, packet: Packet) -> None
+    def handle_ack(self, packet: bytes) -> None:
         """Handle acknowledgment packets."""
 ```
 
@@ -357,16 +355,16 @@ class Sender:
 class Receiver:
     def __init__(self, session, enable_error_correction=True)
     
-    def receive(self, packet: Packet) -> Optional[str]
+    def receive(self, packet: bytes) -> Optional[str]:
         """Receive and process a packet."""
     
-    def get_pending_acks(self) -> List[Packet]
+    def get_pending_acks(self) -> List[bytes]:
         """Get pending acknowledgment packets."""
     
-    def has_pending_data(self) -> bool
+    def has_pending_data(self) -> bool:
         """Check for pending data."""
     
-    def reset(self) -> None
+    def reset(self) -> None:
         """Reset receiver state."""
 ```
 

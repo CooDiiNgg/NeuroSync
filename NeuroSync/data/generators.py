@@ -5,7 +5,7 @@ Message generation utilities for NeuroSync.
 import numpy as np
 from typing import List, Optional
 
-from NeuroSync.data.loaders import WordListLoader
+from NeuroSync.data.loaders import WordListLoader, create_word_list
 from NeuroSync.encoding.constants import MESSAGE_LENGTH
 
 class MessageGenerator:
@@ -23,6 +23,22 @@ class MessageGenerator:
         """Loads words from a file into the generator's word list."""
         loader = WordListLoader(self.message_length)
         self.word_list = loader.load(filepath)
+    
+    def create_word_list(
+            self,
+            filepath: str,
+            message_length: int = MESSAGE_LENGTH,
+            num_words: int = 1_000_000
+    ) -> None:
+        """Creates and loads a word list file with random words."""
+        folder = filepath.rsplit('/', 1)[0]
+        import os
+        os.makedirs(folder, exist_ok=True)
+        self.word_list = create_word_list(
+            filepath,
+            message_length,
+            num_words
+        )
 
     def generate(self) -> str:
         """Generates a single random message from the word list."""
