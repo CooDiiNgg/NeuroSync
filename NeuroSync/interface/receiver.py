@@ -13,7 +13,7 @@ from NeuroSync.protocol.error_correction import ParityMatrix
 from NeuroSync.protocol.assembler import PacketAssembler
 from NeuroSync.protocol.key_rotation import KeyRotationManager
 from NeuroSync.encoding.constants import BIT_LENGTH, MESSAGE_LENGTH
-from NeuroSync.encoding.codec import bits_to_text
+from NeuroSync.encoding.codec import bits_to_text, text_to_bits
 
 
 class Receiver:
@@ -36,18 +36,20 @@ class Receiver:
             session.key_manager,
         )
         
-        self._pending_acks: List[Packet] = []
+        self._pending_acks: List[bytes] = []
     
-    def receive(self, packet: Packet) -> Optional[str]:
+    def receive(self, packet: bytes) -> Optional[str]:
         """
         Receives and processes a packet.
         
         Args:
-            packet: Received packet
+            packet: Received packet in bytes
         
         Returns:
             Complete decrypted message if ready, None otherwise
         """
+
+        packet = Packet.from_bytes(packet)
 
         if not packet.verify_checksum():
             self._pending_acks.append(self._create_retransmit_request(packet))
@@ -97,26 +99,49 @@ class Receiver:
             ciphertext, dtype=torch.float32, device=self.session.device
         )
         plaintext = self.session.decrypt(ciphertext_tensor)
+        plaintext = text_to_bits(plaintext)
+        plaintext_bytes = np.array(plaintext, dtype=np.float32).tobytes()
         
+        plaintext_bytes = packet.resolve_plain_hash(plaintext_bytes)
+        plaintext = bits_to_text(np.frombuffer(plaintext_bytes, dtype=np.float32))
         return plaintext
     
     def _handle_key_change(self, packet: Packet) -> None:
         """Handles key change packets."""
-        _ = self.key_rotation.receive_new_key(
-            encrypted_key=packet.payload,
-            decrypt_fn=lambda k: self.session.decrypt_tensor(k),
-            device=self.session.device,
+        encrypted_array = np.frombuffer(packet.payload, dtype=np.float32)
+
+        if self.parity and packet.parity:
+            parity_bits = np.frombuffer(packet.parity, dtype=np.float32)
+            encoded = np.concatenate([
+                encrypted_array,
+                parity_bits
+            ])
+            encrypted_array, error_pos = self.parity.decode(encoded)
+            if error_pos > 0:
+                pass
+        
+        encrypted_tensor = torch.tensor(
+            encrypted_array, dtype=torch.float32, device=self.session.device
         )
+
+        decrypted_tensor = self.session.decrypt_tensor(encrypted_tensor)
+        decrypted_bytes = decrypted_tensor.detach().cpu().numpy().astype(np.float32).tobytes()
+
+        decrypted_bytes = packet.resolve_plain_hash(decrypted_bytes)
+        decrypted_tensor = torch.tensor(
+            np.frombuffer(decrypted_bytes, dtype=np.float32), dtype=torch.float32, device=self.session.device
+        )
+        self.key_rotation.receive_new_key(decrypted_tensor)
     
-    def _create_retransmit_request(self, packet: Packet) -> Packet:
+    def _create_retransmit_request(self, packet: Packet) -> bytes:
         """Creates a retransmit request packet."""
         return Packet.create(
             sequence_id=packet.header.sequence_id,
             payload=b"",
             flags=PacketFlags.RETRANSMIT,
-        )
+        ).to_bytes()
     
-    def create_ack(self, packet: Packet) -> Packet:
+    def create_ack(self, packet: Packet) -> bytes:
         """Creates an acknowledgment packet."""
         preserve_flags = packet.header.flags & (
             PacketFlags.KEY_CHANGE | PacketFlags.WEIGHT_CHANGE | PacketFlags.SYNC
@@ -125,9 +150,9 @@ class Receiver:
             sequence_id=packet.header.sequence_id,
             payload=b"",
             flags=PacketFlags.ACK | preserve_flags,
-        )
+        ).to_bytes()
     
-    def get_pending_acks(self) -> List[Packet]:
+    def get_pending_acks(self) -> List[bytes]:
         """Retrieves and clears pending acknowledgment packets."""
         acks = self._pending_acks
         self._pending_acks = []

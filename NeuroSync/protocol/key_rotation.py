@@ -2,7 +2,7 @@
 Manages key rotation protocol for NeuroSync.
 """
 
-from typing import Optional, Callable
+from typing import Optional, Callable, Union
 import torch
 import numpy as np
 
@@ -21,7 +21,7 @@ class KeyRotationManager:
     def __init__(
         self,
         key_manager: KeyManager,
-        rotation_interval: int = 1000,
+        rotation_interval: int = 50,
     ):
         self.key_manager = key_manager
         self.rotation_interval = rotation_interval
@@ -59,11 +59,13 @@ class KeyRotationManager:
         
         self.waiting_for_ack = True
         
-        return Packet.create(
+        key_pack = Packet.create(
             sequence_id=0,
             payload=encrypted_bytes,
             flags=PacketFlags.KEY_CHANGE,
         )
+        key_pack.calculate_plain_hash(self.pending_key.tobytes())
+        return key_pack
     
     def handle_ack(self) -> None:
         """Handles acknowledgment of key rotation."""
@@ -73,23 +75,16 @@ class KeyRotationManager:
             self.waiting_for_ack = False
             self.packets_since_rotation = 0
     
-    def receive_new_key(self, encrypted_key: bytes, decrypt_fn: Callable, device: torch.device) -> np.ndarray:
+    def receive_new_key(self, decrypted_tensor: Union[torch.Tensor, np.ndarray]) -> np.ndarray:
         """
-        Receives and decrypts a new key from sender.
+        Receives and sets a new key from sender.
         
         Args:
-            encrypted_key: Encrypted key bytes (from packet payload)
-            decrypt_fn: Function to decrypt tensor -> tensor
-            device: Device to perform decryption on
+            decrypted_tensor: Decrypted key tensor
         
         Returns:
             Decrypted new key
         """
-
-        encrypted_array = np.frombuffer(encrypted_key, dtype=np.float32)
-        key_tensor = torch.tensor(encrypted_array, dtype=torch.float32, device=device)
-        
-        decrypted_tensor = decrypt_fn(key_tensor)
         
         if isinstance(decrypted_tensor, torch.Tensor):
             new_key = decrypted_tensor.detach().cpu().numpy()
