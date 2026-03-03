@@ -74,9 +74,18 @@ class NeuroSync:
         """
 
         from NeuroSync.encoding.constants import BIT_LENGTH
+
+        if type(dirpath) != str:
+            raise ValueError("dirpath must be a string path to the weights directory")
+        
+        if type(device) != torch.device and device is not None:
+            raise ValueError("device must be a torch.device or None")
         
         device = device or get_device()
         dirpath = Path(dirpath)
+
+        if not dirpath.exists():
+            raise FileNotFoundError(f"Directory {dirpath} does not exist")
         
         alice = Alice(BIT_LENGTH).to(device)
         bob = Bob(BIT_LENGTH).to(device)
@@ -110,6 +119,12 @@ class NeuroSync:
             NeuroSync instance with trained networks
         """
 
+        if type(config) != TrainingConfig and config is not None:
+            raise ValueError("config must be a TrainingConfig instance or None")
+        
+        if type(device) != torch.device and device is not None:
+            raise ValueError("device must be a torch.device or None")
+        
         config = config or TrainingConfig()
         trainer = NeuroSyncTrainer(config)
         result = trainer.train()
@@ -129,6 +144,10 @@ class NeuroSync:
         Returns:
             Encrypted tensor
         """
+
+        if type(plaintext) != str:
+            raise ValueError("plaintext must be a string")
+        
         return self.session.encrypt(plaintext)
     
     def decrypt(self, ciphertext: torch.Tensor) -> str:
@@ -141,6 +160,10 @@ class NeuroSync:
         Returns:
             Decrypted string
         """
+
+        if type(ciphertext) != torch.Tensor:
+            raise ValueError("ciphertext must be a torch.Tensor")
+        
         return self.session.decrypt(ciphertext)
     
     def create_sender(self):
@@ -155,6 +178,10 @@ class NeuroSync:
     
     def save(self, dirpath: str) -> None:
         """Saves the NeuroSync instance to disk."""
+
+        if type(dirpath) != str:
+            raise ValueError("dirpath must be a string path to the weights directory")
+        
         dirpath = Path(dirpath)
         dirpath.mkdir(parents=True, exist_ok=True)
         
