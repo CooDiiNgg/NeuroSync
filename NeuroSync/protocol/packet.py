@@ -31,8 +31,16 @@ class Packet:
     @classmethod
     def from_bytes(cls, data: bytes) -> "Packet":
         """Deserialize packet from bytes."""
+        
+        if len(data) < PacketHeader.SIZE:
+            raise ValueError("Data too short to contain valid packet header")
+        
         header = PacketHeader.from_bytes(data[:PacketHeader.SIZE])
         payload_end = PacketHeader.SIZE + header.payload_len
+
+        if len(data) < payload_end:
+            raise ValueError("Data too short to contain full payload")
+        
         payload = data[PacketHeader.SIZE:payload_end]
         parity = data[payload_end:] if len(data) > payload_end else b""
         return cls(header=header, payload=payload, parity=parity)
