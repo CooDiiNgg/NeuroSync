@@ -61,5 +61,5 @@ class PacketHeader:
     
     def compute_plain_hash(self, plaintext: bytes) -> int:
         """Compute simple hash - crc32 on the plaintext."""
-        import zlib
-        return zlib.crc32(plaintext) & 0xFFFFFFFF
+        import hashlib
+        return int(hashlib.sha256(plaintext).hexdigest()[:8], 16)
