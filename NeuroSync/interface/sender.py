@@ -51,6 +51,9 @@ class Sender:
             List of packets encoded to bytes to transmit and optionally the remaining message if key rotation occurs
         """
 
+        if type(message) != str:
+            raise ValueError("message must be a string")
+        
         chunks = self._chunk_message(message)
         packets = []
         msg = None
@@ -118,6 +121,8 @@ class Sender:
     
     def handle_ack(self, packet: bytes) -> None:
         """Handles acknowledgment packets."""
+        if type(packet) != bytes:
+            raise ValueError("packet must be bytes")
         pkt = Packet.from_bytes(packet)
         if pkt.header.flags.has(PacketFlags.ACK):
             if pkt.header.flags.has(PacketFlags.KEY_CHANGE):

@@ -49,6 +49,9 @@ class Receiver:
             Complete decrypted message if ready, None otherwise
         """
 
+        if type(packet) != bytes:
+            raise ValueError("packet must be bytes")
+        
         packet = Packet.from_bytes(packet)
 
         if not packet.verify_checksum():
@@ -143,6 +146,9 @@ class Receiver:
     
     def create_ack(self, packet: Packet) -> bytes:
         """Creates an acknowledgment packet."""
+        if type(packet) != Packet:
+            raise ValueError("packet must be a Packet instance")
+        
         preserve_flags = packet.header.flags & (
             PacketFlags.KEY_CHANGE | PacketFlags.WEIGHT_CHANGE | PacketFlags.SYNC
         )
