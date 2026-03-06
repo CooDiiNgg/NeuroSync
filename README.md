@@ -216,7 +216,7 @@ from NeuroSync.crypto.operations import xor
 from NeuroSync.crypto.keys import KeyManager
 
 # Initialize networks
-bit_length = 96  # 16 characters * 6 bits
+bit_length = 112  # 16 characters * 7 bits
 alice = Alice(bit_length, hidden_size=512)
 bob = Bob(bit_length, hidden_size=512)
 
@@ -377,12 +377,12 @@ class Receiver:
 Each network (Alice, Bob, Eve) uses the same base architecture:
 
 ```
-Input (96 bits) 
-    → Linear(96, 512) + LayerNorm + Tanh
+Input (112 bits) 
+    → Linear(112, 512) + LayerNorm + Tanh
     → ResidualBlock × 3
     → Linear(512, 512) + LayerNorm + Tanh  
-    → Linear(512, 96) + Tanh/Temperature
-Output (96 bits)
+    → Linear(512, 112) + Tanh/Temperature
+Output (112 bits)
 ```
 
 Each ResidualBlock contains:

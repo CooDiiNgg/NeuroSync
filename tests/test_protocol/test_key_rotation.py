@@ -5,6 +5,7 @@ import pytest
 from NeuroSync.protocol.key_rotation import KeyRotationManager
 from NeuroSync.crypto.keys import KeyManager
 from NeuroSync.protocol.flags import PacketFlags
+from NeuroSync.encoding.constants import KEY_BIT_LENGTH
 
 
 class TestKeyRotationManager:
@@ -44,5 +45,5 @@ class TestKeyRotationManager:
         assert not km.should_rotate()
 
     def test_receive_new_key(self, km):
-        km.receive_new_key(torch.sign(torch.randn(96)))
+        km.receive_new_key(torch.sign(torch.randn(KEY_BIT_LENGTH)))
         assert km.packets_since_rotation == 0

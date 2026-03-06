@@ -6,6 +6,7 @@ import torch
 import numpy as np
 import tempfile
 import shutil
+from NeuroSync.encoding.constants import BIT_LENGTH, KEY_BIT_LENGTH
 
 from NeuroSync.utils.device import set_device
 
@@ -23,7 +24,7 @@ def device():
 
 @pytest.fixture
 def bit_length():
-    return 96
+    return BIT_LENGTH
 
 
 @pytest.fixture
@@ -39,7 +40,7 @@ def batch_size():
 @pytest.fixture
 def sample_key(device):
     np.random.seed(42)
-    key_np = np.random.choice([-1.0, 1.0], size=96)
+    key_np = np.random.choice([-1.0, 1.0], size=KEY_BIT_LENGTH)
     return torch.tensor(key_np, dtype=torch.float32, device=device)
 
 

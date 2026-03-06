@@ -4,13 +4,14 @@ import torch
 import numpy as np
 import pytest
 from NeuroSync.crypto.keys import KeyManager
+from NeuroSync.encoding.constants import KEY_BIT_LENGTH
 
 
 class TestKeyManager:
     def test_generate(self, device):
         km = KeyManager(device=device)
         key = km.generate()
-        assert key.shape == (96,)
+        assert key.shape == (KEY_BIT_LENGTH,)
         assert set(np.unique(key)).issubset({-1.0, 1.0})
 
     def test_to_tensor_no_key(self, device):
@@ -21,7 +22,7 @@ class TestKeyManager:
         km = KeyManager(device=device)
         km.generate()
         t = km.to_tensor(batch_size=8)
-        assert t.shape == (8, 96)
+        assert t.shape == (8, KEY_BIT_LENGTH)
         assert torch.equal(t[0], t[7])
 
     def test_save_load(self, tmp_dir, device):
@@ -39,7 +40,7 @@ class TestKeyManager:
 
     def test_set_key(self, device):
         km = KeyManager(device=device)
-        key = np.random.choice([-1.0, 1.0], size=96)
+        key = np.random.choice([-1.0, 1.0], size=KEY_BIT_LENGTH)
         km.set_key(key)
         assert np.array_equal(km.key, key)
 
@@ -64,7 +65,7 @@ class TestKeyManager:
 
     def test_set_from_tensor(self, device):
         km = KeyManager(device=device)
-        km.set_from_tensor(torch.sign(torch.randn(96)))
+        km.set_from_tensor(torch.sign(torch.randn(KEY_BIT_LENGTH)))
         assert km.key is not None
 
     def test_set_from_tensor_wrong_size(self, device):
