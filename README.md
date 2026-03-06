@@ -3,7 +3,7 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch 2.8+](https://img.shields.io/badge/pytorch-2.8+-ee4c2c.svg)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.1.6-green.svg)](https://github.com/CooDiiNgg/NeuroSync)
+[![Version](https://img.shields.io/badge/version-0.1.7-green.svg)](https://github.com/CooDiiNgg/NeuroSync)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/CooDiiNgg/NeuroSync/blob/main/docs/notebooks/neurosync_demo.ipynb)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/thedumb1)
 
@@ -17,7 +17,7 @@ NeuroSync is inspired by [Google Brain's research on neural cryptography](https:
 - **Bob** (Decoder): Recovers plaintext from ciphertext using the same key
 - **Eve** (Adversary): Attempts to decrypt without the key, driving security improvements
 
-Through adversarial training, Alice and Bob learn encryption schemes that Eve cannot break, while the system provides dynamic key rotation, error correction, and a complete protocol stack for real-world applications. You cat test it out in the [demo notebook](https://colab.research.google.com/github/CooDiiNgg/NeuroSync/blob/main/docs/notebooks/neurosync_demo.ipynb) to see how it works!
+Through adversarial training, Alice and Bob learn encryption schemes that Eve cannot break, while the system provides dynamic key rotation, error correction, and a complete protocol stack for real-world applications. You can test it out in the [demo notebook](https://colab.research.google.com/github/CooDiiNgg/NeuroSync/blob/main/docs/notebooks/neurosync_demo.ipynb) to see how it works!
 
 ## Features
 
