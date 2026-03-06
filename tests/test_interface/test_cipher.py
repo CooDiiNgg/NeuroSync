@@ -5,13 +5,14 @@ import pytest
 from NeuroSync.interface.cipher import NeuroSync
 from NeuroSync.core.networks import Alice, Bob
 from NeuroSync.crypto.keys import KeyManager
+from NeuroSync.encoding.constants import BIT_LENGTH
 
 
 class TestNeuroSyncCipher:
     @pytest.fixture
     def cipher(self, device):
-        a = Alice(96, hidden_size=512, num_residual_blocks=3).to(device)
-        b = Bob(96, hidden_size=512, num_residual_blocks=3).to(device)
+        a = Alice(BIT_LENGTH, hidden_size=512, num_residual_blocks=3).to(device)
+        b = Bob(BIT_LENGTH, hidden_size=512, num_residual_blocks=3).to(device)
         km = KeyManager(device=device)
         km.generate()
         return NeuroSync(a, b, km, device)
@@ -19,7 +20,7 @@ class TestNeuroSyncCipher:
     def test_encrypt(self, cipher):
         ct = cipher.encrypt("hello world     ")
         assert isinstance(ct, torch.Tensor)
-        assert ct.shape == (96,)
+        assert ct.shape == (BIT_LENGTH,)
 
     def test_decrypt(self, cipher):
         pt = cipher.decrypt(cipher.encrypt("test            "))

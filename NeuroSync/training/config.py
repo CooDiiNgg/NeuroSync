@@ -4,6 +4,7 @@ Training configuration for NeuroSync.
 
 from dataclasses import dataclass, field
 from typing import Optional
+from NeuroSync.encoding.constants import BITS_PER_CHAR
 
 
 @dataclass
@@ -64,12 +65,12 @@ class TrainingConfig:
     @property
     def bit_length(self) -> int:
         """Gets the message length in bits."""
-        return self.message_length * 6
+        return self.message_length * BITS_PER_CHAR
     
     @property
     def key_bit_length(self) -> int:
         """Gets the key size in bits."""
-        return self.key_size * 6
+        return self.key_size * BITS_PER_CHAR
     
     def to_dict(self) -> dict:
         """Gets a dictionary representation of the config."""
