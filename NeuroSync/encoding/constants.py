@@ -3,7 +3,7 @@ Constants for bit encoding and decoding in NeuroSync.
 """
 
 MESSAGE_LENGTH = 16
-BITS_PER_CHAR = 6
+BITS_PER_CHAR = 7
 BIT_LENGTH = MESSAGE_LENGTH * BITS_PER_CHAR
 
 KEY_SIZE = 16
@@ -15,6 +15,8 @@ CHARSET = {
     **{chr(ord('0') + i): i + 52 for i in range(10)},
     '=': 62,
     ' ': 63,
+    '+': 64,
+    '/': 65,
 }
 
 REVERSE_CHARSET = {v: k for k, v in CHARSET.items()}

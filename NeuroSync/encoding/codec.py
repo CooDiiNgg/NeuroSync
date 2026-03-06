@@ -29,6 +29,10 @@ def text_to_bits(text: str, message_length: int = MESSAGE_LENGTH) -> List[float]
     for c in text:
         if c == ' ':
             val = 63
+        elif c == '+':
+            val = 64
+        elif c == '/':
+            val = 65
         elif 'a' <= c <= 'z':
             val = ord(c) - ord('a')
         elif 'A' <= c <= 'Z':
@@ -38,7 +42,7 @@ def text_to_bits(text: str, message_length: int = MESSAGE_LENGTH) -> List[float]
         else:
             val = 62
         
-        for i in range(5, -1, -1):
+        for i in range(6, -1, -1):
             bits.append(1.0 if (val >> i) & 1 else -1.0)
     
     return bits
@@ -65,13 +69,17 @@ def bits_to_text(bits: Union[torch.Tensor, np.ndarray, List[float]]) -> str:
         val = 0
         for j, bit in enumerate(chunk):
             if bit > 0:
-                val |= (1 << (5 - j))
-        val = min(63, val)
+                val |= (1 << (6 - j))
+        val = min(65, val)
         
         if val == 62:
             chars.append('=')
         elif val == 63:
             chars.append(' ')
+        elif val == 64:
+            chars.append('+')
+        elif val == 65:
+            chars.append('/')
         elif val <= 25:
             chars.append(chr(val + ord('a')))
         elif val <= 51:
