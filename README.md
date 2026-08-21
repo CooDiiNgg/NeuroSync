@@ -1,3 +1,5 @@
+
+
 # NeuroSync
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -494,6 +496,7 @@ NeuroSync/
 │   │   ├── cipher.py        # NeuroSync main class
 │   │   ├── sender.py        # Sender interface
 │   │   ├── receiver.py      # Receiver interface
+│   │   ├── pair.py          # CommunicationPair
 │   │   └── visualizer.py    # Training visualization
 │   ├── protocol/            # Communication protocol
 │   │   ├── packet.py        # Packet structure
